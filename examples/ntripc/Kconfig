@@ -1,0 +1,29 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config EXAMPLES_NTRIPC
+	tristate "Ntrip Client"
+	default n
+	---help---
+		Enable the Ntrip Client example
+
+if EXAMPLES_NTRIPC
+
+config EXAMPLES_NTRIPC_PROGNAME
+	string "Program name"
+	default "ntripc"
+	---help---
+		This is the name of the program that will be used when the NSH ELF
+		program is installed.
+
+config EXAMPLES_NTRIPC_PRIORITY
+	int "Ntrip Client task priority"
+	default 100
+
+config EXAMPLES_NTRIPC_STACKSIZE
+	int "Ntrip Client stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif

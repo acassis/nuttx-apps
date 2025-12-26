@@ -113,11 +113,11 @@ static char *base64(const char *in)
 
 int main(int argc, char **argv)
 {
-    const char *server = NULL;
-    const char *user = NULL;
-    const char *pass = NULL;
-    const char *mount = NULL;
-    const char *serial_dev = NULL;
+    const char *server = "qrtksa1.quectel.com";
+    const char *user = "Soluevo_00_0000001";
+    const char *pass = "itid8x5a";
+    const char *mount = "AUTO";
+    const char *serial_dev = "/dev/ttyS1";
     const char *gga_static = NULL;
     int baud = 115200;
 
@@ -213,6 +213,7 @@ int main(int argc, char **argv)
         if (serial_fd >= 0) {
             char gga[GGA_BUF_SZ];
             if (serial_read_gga(serial_fd, gga, sizeof(gga))) {
+                printf("\n\n\n>>>> Found GGA: %s <<<<\n\n\n", gga);
                 send(sock, gga, strlen(gga), 0);
                 send(sock, "\r\n", 2, 0);
                 last_gga = time(NULL);

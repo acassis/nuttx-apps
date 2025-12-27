@@ -53,6 +53,7 @@
 int main(int argc, FAR char *argv[])
 {
     struct sx127x_read_hdr_s data;
+    int i;
     int ret;
     int s_fd;
     int cnt = 0;
@@ -144,7 +145,7 @@ int main(int argc, FAR char *argv[])
 		      start = clock_systime_ticks();
 		    }
 		}
-	      if (TICK2MSEC(elapsed) < 500)
+	      if (TICK2MSEC(elapsed) <= 1000)
 	        {
 
     opmode = SX127X_OPMODE_TX;
@@ -163,7 +164,13 @@ int main(int argc, FAR char *argv[])
     data.data[3] = 'D';
     data.datalen = 4;
 
+    i = 0;
+    while (i < 3)
+      {
               ret = write(fd, &data.data[0], 63);
+	      usleep(30000);
+	      i++;
+      }
 	      printf(" Send %d bytes", ret);
 
     opmode = SX127X_OPMODE_RX;

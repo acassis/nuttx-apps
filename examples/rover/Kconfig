@@ -1,0 +1,29 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config EXAMPLES_ROVER
+	tristate "Rover example"
+	default n
+	---help---
+		Enable the Rover example
+
+if EXAMPLES_ROVER
+
+config EXAMPLES_ROVER_PROGNAME
+	string "Program name"
+	default "rover"
+	---help---
+		This is the name of the program that will be used when the NSH ELF
+		program is installed.
+
+config EXAMPLES_ROVER_PRIORITY
+	int "Rover task priority"
+	default 100
+
+config EXAMPLES_ROVER_STACKSIZE
+	int "Rover stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif

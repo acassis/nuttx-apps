@@ -21,6 +21,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/param.h>
 
 #include <netdb.h>
 #include <time.h>
@@ -31,7 +32,7 @@
 
 #define BUF_SZ     1024
 #define GGA_BUF_SZ 256
-#define CHUNK_SIZE 63  /* MAX amount of data SX1276 sends */
+#define FRAME_SIZE 63
 
 #define DEV_NAME "/dev/sx127x"
 
@@ -293,22 +294,37 @@ int main(int argc, char **argv)
             write(STDOUT_FILENO, buf, n);
 
         char *p;
-	size_t cnt = 0;
-	while (cnt < n)
+	uint8_t frame[FRAME_SIZE];
+	size_t offset = 0;
+	while (offset < n)
         {
-          size_t remaining = n - cnt;
-          size_t to_write = remaining > CHUNK_SIZE ?
-                            CHUNK_SIZE : remaining;
+          size_t payload = n - offset;
+          if (payload > FRAME_SIZE)
+	    {
+              payload = FRAME_SIZE;
+            }
 
-          ssize_t ret = write(fd, &buf[cnt], to_write);
+          /* Copy payload */
+          memcpy(frame, &buf[offset], payload);
+
+          /* Pad remaining bytes */
+          if (payload < FRAME_SIZE)
+            {
+              memset(&frame[payload], 0x00, FRAME_SIZE - payload);
+            }
+
+          ssize_t ret = write(fd, frame, FRAME_SIZE);
           if (ret < 0)
             {
               perror("write");
               goto errout;
             }
 
-          cnt += ret;
+          offset += payload;
+
+          usleep(1000);  /* Allow radio to TX */
 	}
+	printf("N = %d\n", n);
     }
 
 errout:

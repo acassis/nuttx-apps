@@ -108,14 +108,17 @@ int main(int argc, FAR char *argv[])
         goto errout;
       }
 
+    clock_t start = clock_systime_ticks();
+    clock_t now;
+    clock_t elapsed;
     while(1)
     {
               printf(".");
-              if ((cnt % 50) == 0)
+              if ((cnt % 30) == 0)
                 printf("\n");
                   
               cnt++;
-  
+
               ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
               if (ret < 0)
                 {
@@ -124,7 +127,54 @@ int main(int argc, FAR char *argv[])
                 }
 
               write(s_fd, data.data, data.datalen);
+	      if (data.data[62] == 0x00)
+	        {
+                  /* Let's see if it is padding */
+		  int i = 62;
+		  while (data.data[i] == 0x00)
+		  {
+                    i--;
+		  }
+		  
+		  if (data.data[i] == 0xAA)
+		    {
+                      now = clock_systime_ticks();
+		      elapsed = now - start;
+		      printf("\nElapsed = %d ",TICK2MSEC(elapsed));
+		      start = clock_systime_ticks();
+		    }
+		}
+	      if (TICK2MSEC(elapsed) < 500)
+	        {
 
+    opmode = SX127X_OPMODE_TX;
+    ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+    if (ret < 0)
+      {
+        printf("failed change opmode to RX %d!\n", ret);
+        goto errout;
+      }
+
+    usleep(10000);
+
+    data.data[0] = 'A';
+    data.data[1] = 'B';
+    data.data[2] = 'C';
+    data.data[3] = 'D';
+    data.datalen = 4;
+
+              ret = write(fd, &data.data[0], 63);
+	      printf(" Send %d bytes", ret);
+
+    opmode = SX127X_OPMODE_RX;
+    ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+    if (ret < 0)
+      {
+        printf("failed change opmode to RX %d!\n", ret);
+        goto errout;
+      }
+    elapsed = 900000000;
+		}
 	      usleep(5000);
     }
 errout:

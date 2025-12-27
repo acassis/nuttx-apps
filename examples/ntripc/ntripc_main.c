@@ -294,33 +294,29 @@ int main(int argc, char **argv)
             write(STDOUT_FILENO, buf, n);
 
         char *p;
-	uint8_t frame[FRAME_SIZE];
-	size_t offset = 0;
-	while (offset < n)
+	size_t cnt = 0;
+	while (cnt < n)
         {
-          size_t payload = n - offset;
-          if (payload > FRAME_SIZE)
+          size_t to_write = n - cnt;
+          if (to_write > FRAME_SIZE)
 	    {
-              payload = FRAME_SIZE;
+              to_write = FRAME_SIZE;
             }
 
-          /* Copy payload */
-          memcpy(frame, &buf[offset], payload);
-
-          /* Pad remaining bytes */
-          if (payload < FRAME_SIZE)
+          /* Pad remaining bytes (actually clear the buffer) */
+          if (to_write < FRAME_SIZE)
             {
-              memset(&frame[payload], 0x00, FRAME_SIZE - payload);
+              memset(&buf[cnt+to_write], 0x00, FRAME_SIZE - to_write);
             }
 
-          ssize_t ret = write(fd, frame, FRAME_SIZE);
+          ssize_t ret = write(fd, &buf[cnt], FRAME_SIZE);
           if (ret < 0)
             {
               perror("write");
               goto errout;
             }
 
-          offset += payload;
+          cnt += to_write;
 
           usleep(1000);  /* Allow radio to TX */
 	}

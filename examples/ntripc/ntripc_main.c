@@ -11,18 +11,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <termios.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+
 #include <netdb.h>
 #include <time.h>
 
+#include <nuttx/wireless/lpwan/sx127x.h>
+
 /* -------------------------------------------------- */
 
-#define BUF_SZ 1024
+#define BUF_SZ     1024
 #define GGA_BUF_SZ 256
+#define CHUNK_SIZE 63  /* MAX amount of data SX1276 sends */
+
+#define DEV_NAME "/dev/sx127x"
 
 /* -------------------------------------------------- */
 
@@ -121,6 +132,45 @@ int main(int argc, char **argv)
     const char *gga_static = NULL;
     int baud = 115200;
 
+    /* Open device */
+
+    int fd;
+    fd = open(DEV_NAME, O_RDWR);
+    if (fd < 0)
+      {
+        int errcode = errno;
+        printf("ERROR: Failed to open device %s: %d\n", DEV_NAME, errcode);
+        return 0;
+      }
+    printf("%s opened...\n", DEV_NAME);
+
+    uint8_t modulation = 1;
+    int ret;
+    ret = ioctl(fd, SX127XIOC_MODULATIONSET,
+              (unsigned long)&modulation);
+    if (ret < 0)
+      {
+        printf("failed change modulation %d!\n", ret);
+        goto errout;
+      }
+
+    uint32_t frequency = 915000000;
+    ret = ioctl(fd, WLIOC_SETRADIOFREQ, (unsigned long)&frequency);
+    if (ret < 0)
+      {
+        printf("failed to change frequency %d!\n", ret);
+        goto errout;
+      }
+
+    int8_t power = 20;
+    ret = ioctl(fd, WLIOC_SETTXPOWER, (unsigned long)&power);
+    if (ret < 0)
+      {
+        printf("failed to change power %d!\n", ret);
+        goto errout;
+      }
+    printf("SX1276 configured...\n");
+
     int opt;
     while ((opt = getopt(argc, argv, "s:u:p:m:d:b:g:")) != -1) {
         switch (opt) {
@@ -149,6 +199,10 @@ int main(int argc, char **argv)
             return 1;
         }
     }
+    if (serial_fd > 0)
+      {
+        printf("RTK serial opened...\n");
+      }
 
     /* -------------------------------------------------- */
     /* Connect to caster                                  */
@@ -164,6 +218,7 @@ int main(int argc, char **argv)
         perror("connect");
         return 1;
     }
+    printf("Connected to %s:%d", server, 2101);
 
     /* -------------------------------------------------- */
     /* Send GET                                           */
@@ -180,6 +235,7 @@ int main(int argc, char **argv)
         base64(auth));
 
     send(sock, req, strlen(req), 0);
+    printf("GET Auth sent...\n");
 
     /* -------------------------------------------------- */
     /* ---- NTRIP ICY handling ----                       */
@@ -201,19 +257,20 @@ int main(int argc, char **argv)
             return 0;
         }
     }
+    printf("Received ICY 200!\n");
 
     /* -------------------------------------------------- */
     /* Main loop                                          */
 
     time_t last_gga = 0;
 
-    while (1) {
+    while (1)
+    {
 
         /* ---- GGA upstream ---- */
         if (serial_fd >= 0) {
             char gga[GGA_BUF_SZ];
             if (serial_read_gga(serial_fd, gga, sizeof(gga))) {
-                printf("\n\n\n>>>> Found GGA: %s <<<<\n\n\n", gga);
                 send(sock, gga, strlen(gga), 0);
                 send(sock, "\r\n", 2, 0);
                 last_gga = time(NULL);
@@ -229,12 +286,33 @@ int main(int argc, char **argv)
         if (n <= 0)
             break;
 
+	printf("RECV: %d\n", n);
         if (serial_fd >= 0)
             write(serial_fd, buf, n);
         else
             write(STDOUT_FILENO, buf, n);
+
+        char *p;
+	size_t cnt = 0;
+	while (cnt < n)
+        {
+          size_t remaining = n - cnt;
+          size_t to_write = remaining > CHUNK_SIZE ?
+                            CHUNK_SIZE : remaining;
+
+          ssize_t ret = write(fd, &buf[cnt], to_write);
+          if (ret < 0)
+            {
+              perror("write");
+              goto errout;
+            }
+
+          cnt += ret;
+	}
     }
 
+errout:
+    close(fd);
     return 0;
 }
 

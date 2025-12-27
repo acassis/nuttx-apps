@@ -136,7 +136,7 @@ int main(int argc, char **argv)
     /* Open device */
 
     int fd;
-    fd = open(DEV_NAME, O_RDWR);
+    fd = open(DEV_NAME, O_RDWR | O_NONBLOCK);
     if (fd < 0)
       {
         int errcode = errno;
@@ -287,13 +287,14 @@ int main(int argc, char **argv)
         if (n <= 0)
             break;
 
-	printf("RECV: %d\n", n);
+	//printf("RECV: %d\n", n);
+	clock_t start = clock_systime_ticks();
+
         if (serial_fd >= 0)
             write(serial_fd, buf, n);
         else
             write(STDOUT_FILENO, buf, n);
 
-        char *p;
 	size_t cnt = 0;
 	while (cnt < n)
         {
@@ -306,7 +307,9 @@ int main(int argc, char **argv)
           /* Pad remaining bytes (actually clear the buffer) */
           if (to_write < FRAME_SIZE)
             {
-              memset(&buf[cnt+to_write], 0x00, FRAME_SIZE - to_write);
+              buf[cnt+to_write + 1] = 0xAA;
+	      buf[cnt+to_write + 2] = 0xAA;
+              memset(&buf[cnt + to_write + 2], 0x00, FRAME_SIZE - to_write - 2);
             }
 
           ssize_t ret = write(fd, &buf[cnt], FRAME_SIZE);
@@ -320,7 +323,55 @@ int main(int argc, char **argv)
 
           usleep(1000);  /* Allow radio to TX */
 	}
-	printf("N = %d\n", n);
+
+	clock_t now = clock_systime_ticks();
+	printf("Time to TX N = %d bytes: %d\n", n, TICK2MSEC(now - start));
+
+	/* Try to receive data from the Rover, only if we recv < 500b*/
+
+	if (n < 800)
+	  {
+            struct sx127x_read_hdr_s data;
+	    data.datalen = 0;
+            uint8_t opmode = SX127X_OPMODE_RX;
+            ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+            if (ret < 0)
+              {
+                printf("failed change opmode to RX %d!\n", ret);
+              }
+
+	    start = clock_systime_ticks();
+	    clock_t elapsed = 0;
+
+            while (elapsed < MSEC2TICK(200))
+	      {
+                ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
+                if (ret < 0)
+                  {
+                    printf("Read failed %d!\n", ret);
+                  }
+
+		if (ret > 0)
+		  {
+		    printf("Read %d bytes\n", ret);
+		    for (int i=0; i < data.datalen; i++)
+		      {
+                        printf("%02X = %c | ", data.data[i], data.data[i]);
+		      }
+		    printf("\n");
+                  }
+
+                elapsed = clock_systime_ticks() - start;
+		usleep(1000);
+	      }
+
+            opmode = SX127X_OPMODE_TX;
+            ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+            if (ret < 0)
+              {
+                printf("failed change opmode to RX %d!\n", ret);
+              }
+	  }
     }
 
 errout:

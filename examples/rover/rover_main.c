@@ -206,6 +206,7 @@ int main(int argc, FAR char *argv[])
                   
               cnt++;
 
+	      data.datalen = 0;
               ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
               if (ret < 0)
                 {
@@ -213,27 +214,30 @@ int main(int argc, FAR char *argv[])
                   goto errout;
                 }
 
-              write(s_fd, data.data, data.datalen);
-	      if (data.data[62] == 0x00)
-	        {
-                  /* Let's see if it is padding */
-		  int j = 62;
-		  while (data.data[i] == 0x00)
-		  {
-                    j--;
-		  }
-		  
-		  if (data.data[j] == 0xAA)
+	      if (data.datalen == FRAME_SIZE)
+	      {
+                write(s_fd, data.data, data.datalen);
+	        if (data.data[62] == 0x00)
+	          {
+                    /* Let's see if it is padding */
+		    int j = 62;
+		    while (data.data[j] == 0x00)
 		    {
-                      now = clock_systime_ticks();
-		      elapsed = now - start;
-		      printf("\nElapsed = %d ",TICK2MSEC(elapsed));
-		      start = clock_systime_ticks();
+                      j--;
 		    }
-		}
+		  
+		    if (data.data[j] == 0xAA)
+		      {
+                        now = clock_systime_ticks();
+		        elapsed = now - start;
+		        printf("\nElapsed = %d ",TICK2MSEC(elapsed));
+                        start = clock_systime_ticks();
+		      }
+		  }
+	      }
+
 	      if (TICK2MSEC(elapsed) <= 1000)
 	        {
-
                   if (serial_read_gga(s_fd, gga, sizeof(gga)))
 	            {
                       opmode = SX127X_OPMODE_TX;
@@ -245,9 +249,17 @@ int main(int argc, FAR char *argv[])
             
                       usleep(10000);
 		      i = 0;
-                      while (i < 3)
+                      while (i < 1)
                         {
-	                  write(fd, gga, FRAME_SIZE);
+                          char *p;
+			  p = &gga[0];
+	                  write(fd, p, FRAME_SIZE);
+
+	                  usleep(30000);
+
+			  p = &gga[60];
+	                  write(fd, p, FRAME_SIZE);
+
 	                  usleep(30000);
 	                  i++;
                         } 

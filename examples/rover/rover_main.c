@@ -45,6 +45,38 @@
 
 #define DEV_NAME      "/dev/sx127x"
 #define BUFFER_MAX    255
+#define GGA_BUF_SZ    256
+#define FRAME_SIZE    63
+
+
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+static int serial_read_gga(int fd, char *gga, size_t max)
+{
+    static char line[GGA_BUF_SZ];
+    static size_t idx = 0;
+    char c;
+    
+    while (read(fd, &c, 1) == 1) {
+        if (c == '\n') {
+            line[idx] = 0;
+            idx = 0;
+    
+            if (!strncmp(line, "$GPGGA", 6) ||
+                !strncmp(line, "$GNGGA", 6)) {
+                strncpy(gga, line, max - 1);
+                gga[max - 1] = 0;
+                return 1;
+            }
+        } else if (idx < sizeof(line) - 1) {
+            line[idx++] = c;
+        }
+    }
+
+    return 0;
+}
 
 /****************************************************************************
  * Public Functions
@@ -53,7 +85,8 @@
 int main(int argc, FAR char *argv[])
 {
     struct sx127x_read_hdr_s data;
-    int i;
+    char gga[GGA_BUF_SZ];
+    int i = 0;
     int ret;
     int s_fd;
     int cnt = 0;
@@ -68,7 +101,7 @@ int main(int argc, FAR char *argv[])
     /* Open device */
 
     int fd;
-    fd = open(DEV_NAME, O_RDWR);
+    fd = open(DEV_NAME, O_RDWR | O_NONBLOCK);
     if (fd < 0)
       {
         int errcode = errno;
@@ -101,13 +134,66 @@ int main(int argc, FAR char *argv[])
         goto errout;
       }
 
-    uint8_t opmode = SX127X_OPMODE_RX;
-    ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
-    if (ret < 0)
-      {
-        printf("failed change opmode to RX %d!\n", ret);
-        goto errout;
-      }
+    uint8_t opmode;
+
+    /* We need to get GGA from RTK and send to Base Station */
+    int done = 0;
+
+    while (!done && i < 100)
+     {
+        i++;
+        //printf("\rWaiting start message...%c", cnt % 4 == 0 ? '-' : cnt % 4 == 1 ? '\\' : cnt % 4 == 2 ? '|' : '/');
+	cnt++;
+
+        if (serial_read_gga(s_fd, gga, sizeof(gga)))
+	  {
+            char *p;
+	    printf("\nGGA:\n%s\n\n", gga);
+            opmode = SX127X_OPMODE_TX;
+            ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+            if (ret < 0)
+              {
+                printf("failed change opmode to TX %d!\n", ret);
+              }
+
+	    /* GGA has more than 63 bytes, we need to divide it */
+            p = &gga[0];
+	    write(fd, p, FRAME_SIZE);
+
+	    usleep(30000);
+
+            p = &gga[60];
+	    write(fd, p, FRAME_SIZE);
+          } 
+
+	/* Try to read from BS, if succeed we continue */
+
+        opmode = SX127X_OPMODE_RX;
+        ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+        if (ret < 0)
+          {
+            printf("failed change opmode to RX %d!\n", ret);
+          }
+
+	/* Wait some time to transceiver get message */
+        usleep(500000);
+
+        ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
+        if (ret < 0)
+          {
+            printf("Read failed %d!\n", ret);
+          }
+
+	/* If received something, consider it is start message */
+	/* TODO: Make it more robust */
+	
+	if (data.datalen == FRAME_SIZE)
+	  {
+            done = 1;
+	  }
+     }
+
+    printf("Start message received!\n");
 
     clock_t start = clock_systime_ticks();
     clock_t now;
@@ -131,13 +217,13 @@ int main(int argc, FAR char *argv[])
 	      if (data.data[62] == 0x00)
 	        {
                   /* Let's see if it is padding */
-		  int i = 62;
+		  int j = 62;
 		  while (data.data[i] == 0x00)
 		  {
-                    i--;
+                    j--;
 		  }
 		  
-		  if (data.data[i] == 0xAA)
+		  if (data.data[j] == 0xAA)
 		    {
                       now = clock_systime_ticks();
 		      elapsed = now - start;
@@ -148,40 +234,35 @@ int main(int argc, FAR char *argv[])
 	      if (TICK2MSEC(elapsed) <= 1000)
 	        {
 
-    opmode = SX127X_OPMODE_TX;
-    ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
-    if (ret < 0)
-      {
-        printf("failed change opmode to RX %d!\n", ret);
-        goto errout;
-      }
+                  if (serial_read_gga(s_fd, gga, sizeof(gga)))
+	            {
+                      opmode = SX127X_OPMODE_TX;
+                      ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+                      if (ret < 0)
+                        {         
+                          printf("failed change opmode to TX %d!\n", ret);
+                        }
+            
+                      usleep(10000);
+		      i = 0;
+                      while (i < 3)
+                        {
+	                  write(fd, gga, FRAME_SIZE);
+	                  usleep(30000);
+	                  i++;
+                        } 
 
-    usleep(10000);
+                      opmode = SX127X_OPMODE_RX;
+                      ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+                      if (ret < 0)
+                        {
+                          printf("failed change opmode to RX %d!\n", ret);
+                        }
+		    }
 
-    data.data[0] = 'A';
-    data.data[1] = 'B';
-    data.data[2] = 'C';
-    data.data[3] = 'D';
-    data.datalen = 4;
-
-    i = 0;
-    while (i < 3)
-      {
-              ret = write(fd, &data.data[0], 63);
-	      usleep(30000);
-	      i++;
-      }
-	      printf(" Send %d bytes", ret);
-
-    opmode = SX127X_OPMODE_RX;
-    ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
-    if (ret < 0)
-      {
-        printf("failed change opmode to RX %d!\n", ret);
-        goto errout;
-      }
-    elapsed = 900000000;
+                  elapsed = 900000000;
 		}
+
 	      usleep(5000);
     }
 errout:

@@ -36,6 +36,21 @@
 
 #define DEV_NAME "/dev/sx127x"
 
+struct __attribute__((packed)) rtk_frame_s
+{
+  uint32_t timestamp;   /* seconds since epoch */
+
+  int32_t  lat;         /* latitude  * 1e7 degrees */
+  int32_t  lon;         /* longitude * 1e7 degrees */
+  int32_t  alt;         /* altitude in millimeters */
+
+  uint16_t velocity;    /* cm/s */
+  uint16_t heading;     /* degrees * 100 */
+
+  uint8_t  fix;         /* 0=no fix, 1=float, 2=fixed */
+  uint16_t id;          /* rover or frame ID */
+};
+
 /* -------------------------------------------------- */
 
 static int serial_open(const char *dev, int baud)
@@ -126,6 +141,7 @@ static char *base64(const char *in)
 int main(int argc, char **argv)
 {
     struct sx127x_read_hdr_s data;
+    struct rtk_frame_s *rtk_frame;
     //time_t last_gga = 0;
     char gga[GGA_BUF_SZ];
     const char *server = "qrtksa1.quectel.com";
@@ -508,6 +524,19 @@ int main(int argc, char **argv)
 		          strcat(newgga, data.data);
 		          printf("\nNEW GGA:\n%s\n\n", newgga);
 			  strcpy(gga, newgga);
+
+			  rtk_frame = (struct rtk_frame_s *) &data.data[35];
+
+		      printf("\nRTK DATA:\n");
+		      printf("timestamp: %d\n", rtk_frame->timestamp);
+		      printf("lat......: %d\n", rtk_frame->lat);
+		      printf("long.....: %d\n", rtk_frame->lon);
+		      printf("altitude.: %d\n", rtk_frame->alt);
+		      printf("velocity.: %d\n", rtk_frame->velocity);
+		      printf("heading..: %d\n", rtk_frame->heading);
+		      printf("fix......: %d\n", rtk_frame->fix);
+		      printf("id.......: %d\n", rtk_frame->id);
+
 	                }
 		    }
                   }

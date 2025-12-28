@@ -125,13 +125,17 @@ static char *base64(const char *in)
 
 int main(int argc, char **argv)
 {
+    struct sx127x_read_hdr_s data;
+    //time_t last_gga = 0;
+    char gga[GGA_BUF_SZ];
     const char *server = "qrtksa1.quectel.com";
     const char *user = "Soluevo_00_0000001";
     const char *pass = "itid8x5a";
     const char *mount = "AUTO";
-    const char *serial_dev = "/dev/ttyS1";
+    const char *serial_dev = NULL;
     const char *gga_static = NULL;
     int baud = 115200;
+    uint8_t opmode;
 
     /* Open device */
 
@@ -172,7 +176,70 @@ int main(int argc, char **argv)
       }
     printf("SX1276 configured...\n");
 
-    int opt;
+    int done = 0;
+    size_t cnt = 0;
+
+    while (!done)
+     {
+        printf("\rWaiting GGA message...%c", cnt % 4 == 0 ? '-' : cnt % 4 == 1 ? '\\' : cnt % 4 == 2 ? '|' : '/');
+        cnt++;
+
+        /* Try to read from BS, if succeed we continue */
+
+        opmode = SX127X_OPMODE_RX;
+        ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+        if (ret < 0)
+          {
+            printf("failed change opmode to RX %d!\n", ret);
+          }
+
+        /* Wait some time to transceiver get message */
+        usleep(50000);
+
+        ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
+        if (ret < 0)
+          {
+            printf("Read failed %d!\n", ret);
+          }
+
+	if (data.datalen == FRAME_SIZE)
+          {
+            //printf("\nReceived:\n\n%s\n", data.data);
+
+	    /* Lets check if this is the first part of message */
+            if (strstr(data.data, "GGA") != NULL)
+	      {
+                memcpy(gga, data.data, FRAME_SIZE);
+		gga[60] = 0;
+
+                /* Read second part */
+                usleep(50000);
+
+                ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
+                if (ret < 0)
+                  {
+                    printf("Read failed %d!\n", ret);
+                  }
+
+		/* Second part cannot contain GGA */
+                if (strstr(data.data, "GGA") == NULL)
+	          {
+		    strcat(gga, data.data);
+                    done = 1;
+	          }
+	      }
+	  }
+     }
+
+    printf("\nGGA:\n%s\n\n", gga);
+    opmode = SX127X_OPMODE_TX;
+    ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+    if (ret < 0)
+      {
+        printf("failed change opmode to TX %d!\n", ret);
+      }
+
+    /*int opt;
     while ((opt = getopt(argc, argv, "s:u:p:m:d:b:g:")) != -1) {
         switch (opt) {
         case 's': server = optarg; break;
@@ -185,14 +252,14 @@ int main(int argc, char **argv)
         default:
             return 1;
         }
-    }
+    }*/
 
     if (!server || !user || !pass) {
         fprintf(stderr, "Missing required parameters\n");
         return 1;
     }
 
-    int serial_fd = -1;
+    /*int serial_fd = -1;
     if (serial_dev) {
         serial_fd = serial_open(serial_dev, baud);
         if (serial_fd < 0) {
@@ -203,7 +270,7 @@ int main(int argc, char **argv)
     if (serial_fd > 0)
       {
         printf("RTK serial opened...\n");
-      }
+      }*/
 
     /* -------------------------------------------------- */
     /* Connect to caster                                  */
@@ -263,13 +330,16 @@ int main(int argc, char **argv)
     /* -------------------------------------------------- */
     /* Main loop                                          */
 
-    time_t last_gga = 0;
 
     while (1)
     {
+        /* Send GGA to let NTRIP Caster happy */
+
+        send(sock, gga, strlen(gga), 0);
+        send(sock, "\r\n", 2, 0);
 
         /* ---- GGA upstream ---- */
-        if (serial_fd >= 0) {
+        /*if (serial_fd >= 0) {
             char gga[GGA_BUF_SZ];
             if (serial_read_gga(serial_fd, gga, sizeof(gga))) {
                 send(sock, gga, strlen(gga), 0);
@@ -280,22 +350,22 @@ int main(int argc, char **argv)
             send(sock, gga_static, strlen(gga_static), 0);
             send(sock, "\r\n", 2, 0);
             last_gga = time(NULL);
-        }
+        }*/
 
         /* ---- RTCM downstream ---- */
         int n = recv(sock, buf, sizeof(buf), 0);
         if (n <= 0)
-            break;
+            printf("recv failed!\n"); //break;
 
-	//printf("RECV: %d\n", n);
+	printf("RECV: %d\n", n);
 	clock_t start = clock_systime_ticks();
 
-        if (serial_fd >= 0)
+        /*if (serial_fd >= 0)
             write(serial_fd, buf, n);
         else
-            write(STDOUT_FILENO, buf, n);
+            write(STDOUT_FILENO, buf, n);*/
 
-	size_t cnt = 0;
+	cnt = 0;
 	while (cnt < n)
         {
           size_t to_write = n - cnt;
@@ -331,9 +401,8 @@ int main(int argc, char **argv)
 
 	if (n < 800)
 	  {
-            struct sx127x_read_hdr_s data;
 	    data.datalen = 0;
-            uint8_t opmode = SX127X_OPMODE_RX;
+            opmode = SX127X_OPMODE_RX;
             ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
             if (ret < 0)
               {

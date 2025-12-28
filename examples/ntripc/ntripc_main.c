@@ -401,6 +401,61 @@ int main(int argc, char **argv)
 
 	if (n < 800)
 	  {
+            char newgga[256];
+/*
+            opmode = SX127X_OPMODE_RX;
+            ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+            if (ret < 0)
+              {
+                printf("failed change opmode to RX %d!\n", ret);
+              }
+
+            usleep(50000);
+
+            data.datalen = 0;
+            ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
+            if (ret < 0)
+              {
+                printf("Read failed %d!\n", ret);
+              }
+
+	    if (data.datalen == FRAME_SIZE)
+              {
+                printf("\nReceived:\n\n%s\n", data.data);
+
+	        // Lets check if this is the first part of message
+                if (strstr(data.data, "GGA") != NULL)
+	          {
+                    memcpy(newgga, data.data, FRAME_SIZE);
+		    newgga[60] = 0;
+
+                    // Read second part
+                    usleep(50000);
+
+                    ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
+                    if (ret < 0)
+                      {
+                        printf("Read failed %d!\n", ret);
+                      }
+
+		    // Second part cannot contain GGA
+                    if (strstr(data.data, "GGA") == NULL)
+	              {
+		        strcat(newgga, data.data);
+		        printf("\nNEW GGA:\n%s\n\n", newgga);
+	              }
+                  }
+	      }
+
+            opmode = SX127X_OPMODE_TX;
+            ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
+            if (ret < 0)
+              {
+                printf("failed change opmode to RX %d!\n", ret);
+              }
+*/
+	  
+
 	    data.datalen = 0;
             opmode = SX127X_OPMODE_RX;
             ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
@@ -420,26 +475,47 @@ int main(int argc, char **argv)
                     printf("Read failed %d!\n", ret);
                   }
 
-		if (ret > 0)
-		  {
-		    printf("Read %d bytes\n", ret);
-		    for (int i=0; i < data.datalen; i++)
-		      {
-                        printf("%02X = %c | ", data.data[i], data.data[i]);
-		      }
-		    printf("\n");
+
+	    if (data.datalen == FRAME_SIZE)
+              {
+                //printf("\nReceived:\n\n%s\n", data.data);
+
+	        // Lets check if this is the first part of message
+                if (strstr(data.data, "GGA") != NULL)
+	          {
+                    memcpy(newgga, data.data, FRAME_SIZE);
+		    newgga[60] = 0;
+
+                    // Read second part
+                    usleep(30000);
+
+		    data.datalen = 0;
+                    ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
+                    if (ret < 0)
+                      {
+                        printf("Read failed %d!\n", ret);
+                      }
+
+		    // Second part cannot contain GGA
+		    if (data.datalen == FRAME_SIZE)
+		    {
+                      char *q;
+                      //printf("\nReceived2:\n\n%s\n", data.data);
+                      if ((q = strstr(data.data, "$")) != NULL)
+	                {
+			  q++;
+			  *q = 0;
+		          strcat(newgga, data.data);
+		          printf("\nNEW GGA:\n%s\n\n", newgga);
+			  strcpy(gga, newgga);
+	                }
+		    }
                   }
+	      }
 
                 elapsed = clock_systime_ticks() - start;
 		usleep(1000);
 	      }
-
-            opmode = SX127X_OPMODE_TX;
-            ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
-            if (ret < 0)
-              {
-                printf("failed change opmode to RX %d!\n", ret);
-              }
 	  }
     }
 

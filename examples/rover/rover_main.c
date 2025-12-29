@@ -360,7 +360,7 @@ int main(int argc, FAR char *argv[])
 
     clock_t start = clock_systime_ticks();
     clock_t now;
-    clock_t elapsed;
+    clock_t elapsed = 0;
     while(1)
     {
               printf(".");
@@ -431,15 +431,17 @@ int main(int argc, FAR char *argv[])
                       while (i < 1)
                         {
                           char *p;
-			  p = &gga[0];
-	                  write(fd, p, FRAME_SIZE);
+                          char frame[FRAME_SIZE];
+                          memset(frame, 0, sizeof(frame));
+                          memcpy(frame, gga, FRAME_SIZE - sizeof(rtk_frame) - 2);
+
+                          p = &frame[FRAME_SIZE - sizeof(rtk_frame) - 2];
+                          memcpy(p, &rtk_frame, sizeof(rtk_frame));
+	                  write(fd, frame, FRAME_SIZE);
 
 	                  usleep(30000);
 
-			  p = &gga[95];
-			  memcpy(p, &rtk_frame, sizeof(rtk_frame));
-
-			  p = &gga[60];
+			  p = &gga[FRAME_SIZE - sizeof(rtk_frame) - 2];
 	                  write(fd, p, FRAME_SIZE);
 
 	                  usleep(30000);

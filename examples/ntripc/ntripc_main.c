@@ -153,6 +153,7 @@ int main(int argc, char **argv)
     int baud = 115200;
     uint8_t opmode;
 
+    strcpy(gga, "\$GPGGA,123519,4807.038,N,01131.000,E,1,08,1.0,10.0,M,0.0,M,,\*5A");
     /* Open device */
 
     int fd;
@@ -195,12 +196,12 @@ int main(int argc, char **argv)
     int done = 0;
     size_t cnt = 0;
 
-    while (!done)
+    /*while (!done)
      {
         printf("\rWaiting GGA message...%c", cnt % 4 == 0 ? '-' : cnt % 4 == 1 ? '\\' : cnt % 4 == 2 ? '|' : '/');
         cnt++;
 
-        /* Try to read from BS, if succeed we continue */
+        // Try to read from BS, if succeed we continue
 
         opmode = SX127X_OPMODE_RX;
         ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
@@ -209,7 +210,7 @@ int main(int argc, char **argv)
             printf("failed change opmode to RX %d!\n", ret);
           }
 
-        /* Wait some time to transceiver get message */
+        // Wait some time to transceiver get message
         usleep(50000);
 
         ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
@@ -222,13 +223,13 @@ int main(int argc, char **argv)
           {
             //printf("\nReceived:\n\n%s\n", data.data);
 
-	    /* Lets check if this is the first part of message */
+	    // Lets check if this is the first part of message
             if (strstr(data.data, "GGA") != NULL)
 	      {
                 memcpy(gga, data.data, FRAME_SIZE);
 		gga[60] = 0;
 
-                /* Read second part */
+                // Read second part
                 usleep(50000);
 
                 ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
@@ -237,7 +238,7 @@ int main(int argc, char **argv)
                     printf("Read failed %d!\n", ret);
                   }
 
-		/* Second part cannot contain GGA */
+		// Second part cannot contain GGA
                 if (strstr(data.data, "GGA") == NULL)
 	          {
 		    strcat(gga, data.data);
@@ -245,7 +246,7 @@ int main(int argc, char **argv)
 	          }
 	      }
 	  }
-     }
+     }*/
 
     printf("\nGGA:\n%s\n\n", gga);
     opmode = SX127X_OPMODE_TX;
@@ -384,6 +385,7 @@ int main(int argc, char **argv)
 	cnt = 0;
 	while (cnt < n)
         {
+          printf("+\n");
           size_t to_write = n - cnt;
           if (to_write > FRAME_SIZE)
 	    {
@@ -409,7 +411,7 @@ int main(int argc, char **argv)
 
           usleep(1000);  /* Allow radio to TX */
 	}
-
+        printf("-\n");
 	clock_t now = clock_systime_ticks();
 	printf("Time to TX N = %d bytes: %d\n", n, TICK2MSEC(now - start));
 
@@ -417,6 +419,7 @@ int main(int argc, char **argv)
 
 	if (n < 800)
 	  {
+            printf("<\n");
             char newgga[256];
 /*
             opmode = SX127X_OPMODE_RX;
@@ -485,22 +488,36 @@ int main(int argc, char **argv)
 
             while (elapsed < MSEC2TICK(200))
 	      {
+                printf("!\n");
                 ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
                 if (ret < 0)
                   {
                     printf("Read failed %d!\n", ret);
                   }
 
-
-	    if (data.datalen == FRAME_SIZE)
+            if (data.datalen == FRAME_SIZE)
               {
                 //printf("\nReceived:\n\n%s\n", data.data);
 
 	        // Lets check if this is the first part of message
                 if (strstr(data.data, "GGA") != NULL)
 	          {
-                    memcpy(newgga, data.data, FRAME_SIZE);
-		    newgga[60] = 0;
+                //printf("\nReceived:\n\n%s\n", data.data);
+		rtk_frame = (struct rtk_frame_s *) &data.data[FRAME_SIZE - sizeof(struct rtk_frame_s) - 2];
+
+	        printf("\nRTK DATA:\n");
+	        /*printf("timestamp: %d\n", rtk_frame->timestamp);
+                printf("lat......: %d\n", rtk_frame->lat);
+                printf("long.....: %d\n", rtk_frame->lon);
+	        printf("altitude.: %d\n", rtk_frame->alt);
+                printf("velocity.: %d\n", rtk_frame->velocity);
+                printf("heading..: %d\n", rtk_frame->heading);
+                printf("fix......: %d\n", rtk_frame->fix);
+                printf("id.......: %d\n", rtk_frame->id);*/
+
+                    memcpy(newgga, &data.data[0], FRAME_SIZE - sizeof(struct rtk_frame_s) - 2);
+		    newgga[FRAME_SIZE - sizeof(struct rtk_frame_s) - 2] = 0;
+		    printf("\nGGA1:\n%s\n\n", newgga);
 
                     // Read second part
                     usleep(30000);
@@ -524,19 +541,6 @@ int main(int argc, char **argv)
 		          strcat(newgga, data.data);
 		          printf("\nNEW GGA:\n%s\n\n", newgga);
 			  strcpy(gga, newgga);
-
-			  rtk_frame = (struct rtk_frame_s *) &data.data[35];
-
-		      printf("\nRTK DATA:\n");
-		      printf("timestamp: %d\n", rtk_frame->timestamp);
-		      printf("lat......: %d\n", rtk_frame->lat);
-		      printf("long.....: %d\n", rtk_frame->lon);
-		      printf("altitude.: %d\n", rtk_frame->alt);
-		      printf("velocity.: %d\n", rtk_frame->velocity);
-		      printf("heading..: %d\n", rtk_frame->heading);
-		      printf("fix......: %d\n", rtk_frame->fix);
-		      printf("id.......: %d\n", rtk_frame->id);
-
 	                }
 		    }
                   }

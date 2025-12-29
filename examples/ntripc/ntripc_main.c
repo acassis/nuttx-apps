@@ -385,7 +385,6 @@ int main(int argc, char **argv)
 	cnt = 0;
 	while (cnt < n)
         {
-          printf("+\n");
           size_t to_write = n - cnt;
           if (to_write > FRAME_SIZE)
 	    {
@@ -411,7 +410,6 @@ int main(int argc, char **argv)
 
           usleep(1000);  /* Allow radio to TX */
 	}
-        printf("-\n");
 	clock_t now = clock_systime_ticks();
 	printf("Time to TX N = %d bytes: %d\n", n, TICK2MSEC(now - start));
 
@@ -419,7 +417,6 @@ int main(int argc, char **argv)
 
 	if (n < 800)
 	  {
-            printf("<\n");
             char newgga[256];
 /*
             opmode = SX127X_OPMODE_RX;
@@ -488,7 +485,6 @@ int main(int argc, char **argv)
 
             while (elapsed < MSEC2TICK(200))
 	      {
-                printf("!\n");
                 ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
                 if (ret < 0)
                   {
@@ -506,14 +502,14 @@ int main(int argc, char **argv)
 		rtk_frame = (struct rtk_frame_s *) &data.data[FRAME_SIZE - sizeof(struct rtk_frame_s) - 2];
 
 	        printf("\nRTK DATA:\n");
-	        /*printf("timestamp: %d\n", rtk_frame->timestamp);
+	        printf("timestamp: %d\n", rtk_frame->timestamp);
                 printf("lat......: %d\n", rtk_frame->lat);
                 printf("long.....: %d\n", rtk_frame->lon);
 	        printf("altitude.: %d\n", rtk_frame->alt);
                 printf("velocity.: %d\n", rtk_frame->velocity);
                 printf("heading..: %d\n", rtk_frame->heading);
                 printf("fix......: %d\n", rtk_frame->fix);
-                printf("id.......: %d\n", rtk_frame->id);*/
+                printf("id.......: %d\n", rtk_frame->id);
 
                     memcpy(newgga, &data.data[0], FRAME_SIZE - sizeof(struct rtk_frame_s) - 2);
 		    newgga[FRAME_SIZE - sizeof(struct rtk_frame_s) - 2] = 0;

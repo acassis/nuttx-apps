@@ -26,15 +26,29 @@
 #include <netdb.h>
 #include <time.h>
 
+#include "netutils/cJSON.h"
+
 #include <nuttx/wireless/lpwan/sx127x.h>
 
 /* -------------------------------------------------- */
 
+/* RTK Defs */
 #define BUF_SZ     1024
 #define GGA_BUF_SZ 256
 #define FRAME_SIZE 63
 
+/* Transceiver device */
+
 #define DEV_NAME "/dev/sx127x"
+
+/* Web Server Defs */
+
+#define SERVER_IP   "192.168.1.5"
+//#define SERVER_IP "206.0.93.209"
+#define SERVER_PORT 8000
+#define API_PATH    "/api/tracking/gps"
+
+/* -------------------------------------------------- */
 
 struct __attribute__((packed)) rtk_frame_s
 {
@@ -50,6 +64,112 @@ struct __attribute__((packed)) rtk_frame_s
   uint8_t  fix;         /* 0=no fix, 1=float, 2=fixed */
   uint16_t id;          /* rover or frame ID */
 };
+
+/* -------------------------------------------------- */
+
+static char *build_gps_json(const struct rtk_frame_s *rtk)
+{
+  cJSON *root = cJSON_CreateObject();
+  char *json;
+
+  if (!root)
+    {
+      return NULL;
+    }
+
+  cJSON_AddNumberToObject(root, "id", rtk->id);
+  cJSON_AddNumberToObject(root, "timestamp", rtk->timestamp);
+
+  cJSON_AddNumberToObject(root, "latitude",
+                          (double)rtk->lat / 1e7);
+  cJSON_AddNumberToObject(root, "longitude",
+                          (double)rtk->lon / 1e7);
+
+  cJSON_AddNumberToObject(root, "altitude",
+                          (double)rtk->alt / 1000.0);
+
+  cJSON_AddNumberToObject(root, "speed",
+                          (double)rtk->velocity);
+
+  cJSON_AddNumberToObject(root, "heading",
+                          (double)rtk->heading / 100.0);
+
+  cJSON_AddNumberToObject(root, "fix", rtk->fix);
+
+  json = cJSON_PrintUnformatted(root);
+  cJSON_Delete(root);
+
+  return json; /* caller must free() */
+}
+
+static int send_gps_json(const char *json)
+{
+  int sock;
+  struct sockaddr_in addr;
+  char request[512];
+  int json_len;
+  int ret;
+
+  sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (sock < 0)
+    {
+      perror("socket");
+      return -1;
+    }
+
+  addr.sin_family = AF_INET;
+  addr.sin_port   = htons(SERVER_PORT);
+  addr.sin_addr.s_addr = inet_addr(SERVER_IP);
+
+  if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
+      perror("connect");
+      close(sock);
+      return -1;
+    }
+
+  json_len = strlen(json);
+
+  snprintf(request, sizeof(request),
+           "POST %s HTTP/1.1\r\n"
+           "Host: %s:%d\r\n"
+           "Content-Type: application/json\r\n"
+           "Content-Length: %d\r\n"
+           "Connection: close\r\n"
+           "\r\n"
+           "%s",
+           API_PATH,
+           SERVER_IP, SERVER_PORT,
+           json_len,
+           json);
+
+  ret = write(sock, request, strlen(request));
+  if (ret < 0)
+    {
+      perror("write");
+    }
+
+  close(sock);
+  return ret;
+}
+
+void send_rtk_to_server(const struct rtk_frame_s *rtk)
+{
+  char *json;
+
+  json = build_gps_json(rtk);
+  if (!json)
+    {
+      printf("Failed to build JSON\n");
+      return;
+    }
+
+  printf("Sending JSON: %s\n", json);
+
+  send_gps_json(json);
+
+  free(json);
+}
 
 /* -------------------------------------------------- */
 
@@ -196,59 +316,7 @@ int main(int argc, char **argv)
     int done = 0;
     size_t cnt = 0;
 
-    /*while (!done)
-     {
-        printf("\rWaiting GGA message...%c", cnt % 4 == 0 ? '-' : cnt % 4 == 1 ? '\\' : cnt % 4 == 2 ? '|' : '/');
-        cnt++;
-
-        // Try to read from BS, if succeed we continue
-
-        opmode = SX127X_OPMODE_RX;
-        ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
-        if (ret < 0)
-          {
-            printf("failed change opmode to RX %d!\n", ret);
-          }
-
-        // Wait some time to transceiver get message
-        usleep(50000);
-
-        ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
-        if (ret < 0)
-          {
-            printf("Read failed %d!\n", ret);
-          }
-
-	if (data.datalen == FRAME_SIZE)
-          {
-            //printf("\nReceived:\n\n%s\n", data.data);
-
-	    // Lets check if this is the first part of message
-            if (strstr(data.data, "GGA") != NULL)
-	      {
-                memcpy(gga, data.data, FRAME_SIZE);
-		gga[60] = 0;
-
-                // Read second part
-                usleep(50000);
-
-                ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
-                if (ret < 0)
-                  {
-                    printf("Read failed %d!\n", ret);
-                  }
-
-		// Second part cannot contain GGA
-                if (strstr(data.data, "GGA") == NULL)
-	          {
-		    strcat(gga, data.data);
-                    done = 1;
-	          }
-	      }
-	  }
-     }*/
-
-    printf("\nGGA:\n%s\n\n", gga);
+     printf("\nGGA:\n%s\n\n", gga);
     opmode = SX127X_OPMODE_TX;
     ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
     if (ret < 0)
@@ -256,38 +324,10 @@ int main(int argc, char **argv)
         printf("failed change opmode to TX %d!\n", ret);
       }
 
-    /*int opt;
-    while ((opt = getopt(argc, argv, "s:u:p:m:d:b:g:")) != -1) {
-        switch (opt) {
-        case 's': server = optarg; break;
-        case 'u': user = optarg; break;
-        case 'p': pass = optarg; break;
-        case 'm': mount = optarg; break;
-        case 'd': serial_dev = optarg; break;
-        case 'b': baud = atoi(optarg); break;
-        case 'g': gga_static = optarg; break;
-        default:
-            return 1;
-        }
-    }*/
-
     if (!server || !user || !pass) {
         fprintf(stderr, "Missing required parameters\n");
         return 1;
     }
-
-    /*int serial_fd = -1;
-    if (serial_dev) {
-        serial_fd = serial_open(serial_dev, baud);
-        if (serial_fd < 0) {
-            perror("serial_open");
-            return 1;
-        }
-    }
-    if (serial_fd > 0)
-      {
-        printf("RTK serial opened...\n");
-      }*/
 
     /* -------------------------------------------------- */
     /* Connect to caster                                  */
@@ -347,27 +387,12 @@ int main(int argc, char **argv)
     /* -------------------------------------------------- */
     /* Main loop                                          */
 
-
     while (1)
     {
         /* Send GGA to let NTRIP Caster happy */
 
         send(sock, gga, strlen(gga), 0);
         send(sock, "\r\n", 2, 0);
-
-        /* ---- GGA upstream ---- */
-        /*if (serial_fd >= 0) {
-            char gga[GGA_BUF_SZ];
-            if (serial_read_gga(serial_fd, gga, sizeof(gga))) {
-                send(sock, gga, strlen(gga), 0);
-                send(sock, "\r\n", 2, 0);
-                last_gga = time(NULL);
-            }
-        } else if (gga_static && time(NULL) - last_gga >= 5) {
-            send(sock, gga_static, strlen(gga_static), 0);
-            send(sock, "\r\n", 2, 0);
-            last_gga = time(NULL);
-        }*/
 
         /* ---- RTCM downstream ---- */
         int n = recv(sock, buf, sizeof(buf), 0);
@@ -376,11 +401,6 @@ int main(int argc, char **argv)
 
 	printf("RECV: %d\n", n);
 	clock_t start = clock_systime_ticks();
-
-        /*if (serial_fd >= 0)
-            write(serial_fd, buf, n);
-        else
-            write(STDOUT_FILENO, buf, n);*/
 
 	cnt = 0;
 	while (cnt < n)
@@ -418,59 +438,6 @@ int main(int argc, char **argv)
 	if (n < 800)
 	  {
             char newgga[256];
-/*
-            opmode = SX127X_OPMODE_RX;
-            ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
-            if (ret < 0)
-              {
-                printf("failed change opmode to RX %d!\n", ret);
-              }
-
-            usleep(50000);
-
-            data.datalen = 0;
-            ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
-            if (ret < 0)
-              {
-                printf("Read failed %d!\n", ret);
-              }
-
-	    if (data.datalen == FRAME_SIZE)
-              {
-                printf("\nReceived:\n\n%s\n", data.data);
-
-	        // Lets check if this is the first part of message
-                if (strstr(data.data, "GGA") != NULL)
-	          {
-                    memcpy(newgga, data.data, FRAME_SIZE);
-		    newgga[60] = 0;
-
-                    // Read second part
-                    usleep(50000);
-
-                    ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
-                    if (ret < 0)
-                      {
-                        printf("Read failed %d!\n", ret);
-                      }
-
-		    // Second part cannot contain GGA
-                    if (strstr(data.data, "GGA") == NULL)
-	              {
-		        strcat(newgga, data.data);
-		        printf("\nNEW GGA:\n%s\n\n", newgga);
-	              }
-                  }
-	      }
-
-            opmode = SX127X_OPMODE_TX;
-            ret = ioctl(fd, SX127XIOC_OPMODESET, (unsigned long)&opmode);
-            if (ret < 0)
-              {
-                printf("failed change opmode to RX %d!\n", ret);
-              }
-*/
-	  
 
 	    data.datalen = 0;
             opmode = SX127X_OPMODE_RX;
@@ -491,59 +458,57 @@ int main(int argc, char **argv)
                     printf("Read failed %d!\n", ret);
                   }
 
-            if (data.datalen == FRAME_SIZE)
-              {
-                //printf("\nReceived:\n\n%s\n", data.data);
+                if (data.datalen == FRAME_SIZE)
+                  {
+                    //printf("\nReceived:\n\n%s\n", data.data);
 
-	        // Lets check if this is the first part of message
-                if (strstr(data.data, "GGA") != NULL)
-	          {
-                //printf("\nReceived:\n\n%s\n", data.data);
-		rtk_frame = (struct rtk_frame_s *) &data.data[FRAME_SIZE - sizeof(struct rtk_frame_s) - 2];
+	            // Lets check if this is the first part of message
+                    if (memmem(data.data, FRAME_SIZE, "GGA", 3) != NULL)
+	              {
+                        //printf("\nReceived:\n\n%s\n", data.data);
+		        rtk_frame = (struct rtk_frame_s *) &data.data[FRAME_SIZE -
+                                    sizeof(struct rtk_frame_s) - 2];
 
-	        printf("\nRTK DATA:\n");
-	        printf("timestamp: %d\n", rtk_frame->timestamp);
-                printf("lat......: %d\n", rtk_frame->lat);
-                printf("long.....: %d\n", rtk_frame->lon);
-	        printf("altitude.: %d\n", rtk_frame->alt);
-                printf("velocity.: %d\n", rtk_frame->velocity);
-                printf("heading..: %d\n", rtk_frame->heading);
-                printf("fix......: %d\n", rtk_frame->fix);
-                printf("id.......: %d\n", rtk_frame->id);
+	                printf("\nRTK DATA:\n");
+	                printf("timestamp: %d\n", rtk_frame->timestamp);
+                        printf("lat......: %d\n", rtk_frame->lat);
+                        printf("long.....: %d\n", rtk_frame->lon);
+	                printf("altitude.: %d\n", rtk_frame->alt);
+                        printf("velocity.: %d\n", rtk_frame->velocity);
+                        printf("heading..: %d\n", rtk_frame->heading);
+                        printf("fix......: %d\n", rtk_frame->fix);
+                        printf("id.......: %d\n", rtk_frame->id);
 
-                    memcpy(newgga, &data.data[0], FRAME_SIZE - sizeof(struct rtk_frame_s) - 2);
-		    newgga[FRAME_SIZE - sizeof(struct rtk_frame_s) - 2] = 0;
-		    printf("\nGGA1:\n%s\n\n", newgga);
+                        send_rtk_to_server(rtk_frame);
 
-                    // Read second part
-                    usleep(30000);
+                        memcpy(newgga, &data.data[0], FRAME_SIZE -
+                               sizeof(struct rtk_frame_s) - 2);
+		        newgga[FRAME_SIZE - sizeof(struct rtk_frame_s) - 2] = 0;
+		        //printf("\nGGA1:\n%s\n\n", newgga);
 
-		    data.datalen = 0;
-                    ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
-                    if (ret < 0)
-                      {
-                        printf("Read failed %d!\n", ret);
+                        // Read second part
+                        usleep(30000);
+
+		        data.datalen = 0;
+                        ret = read(fd, &data, sizeof(struct sx127x_read_hdr_s));
+                        if (ret < 0)
+                          {
+                            printf("Read failed %d!\n", ret);
+                            goto nextread;
+                          }
+
+		        // Second part cannot contain GGA
+		        if (data.datalen == FRAME_SIZE)
+		          {
+                            strcat(newgga, data.data);
+		            printf("\nNEW GGA:\n%s\n\n", newgga);
+                            strcpy(gga, newgga);
+		          }
                       }
-
-		    // Second part cannot contain GGA
-		    if (data.datalen == FRAME_SIZE)
-		    {
-                      char *q;
-                      //printf("\nReceived2:\n\n%s\n", data.data);
-                      if ((q = strstr(data.data, "$")) != NULL)
-	                {
-			  q++;
-			  *q = 0;
-		          strcat(newgga, data.data);
-		          printf("\nNEW GGA:\n%s\n\n", newgga);
-			  strcpy(gga, newgga);
-	                }
-		    }
-                  }
-	      }
-
+	          }
+nextread:
                 elapsed = clock_systime_ticks() - start;
-		usleep(1000);
+                usleep(1000);
 	      }
 	  }
     }

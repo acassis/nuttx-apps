@@ -28,6 +28,7 @@
 
 #include "netutils/cJSON.h"
 
+#include <nuttx/timers/watchdog.h>
 #include <nuttx/wireless/lpwan/sx127x.h>
 
 /* -------------------------------------------------- */
@@ -271,6 +272,7 @@ int main(int argc, char **argv)
     const char *serial_dev = NULL;
     const char *gga_static = NULL;
     int baud = 115200;
+    uint32_t timeout = 5000; /* 5s*/
     uint8_t opmode;
 
     strcpy(gga, "\$GPGGA,123519,4807.038,N,01131.000,E,1,08,1.0,10.0,M,0.0,M,,\*5A");
@@ -384,11 +386,48 @@ int main(int argc, char **argv)
     }
     printf("Received ICY 200!\n");
 
+    int fd_wdg;
+    /* Open the watchdog device for reading */
+
+    fd_wdg = open("/dev/watchdog0", O_RDONLY);
+    if (fd_wdg < 0)
+      {
+        printf("watchdog open failed: %d\n", errno);
+        goto errout;
+      }
+
+    /* Set the watchdog timeout */
+
+    ret = ioctl(fd_wdg, WDIOC_SETTIMEOUT, (unsigned long)timeout);
+    if (ret < 0)
+      {
+        printf("ioctl(WDIOC_SETTIMEOUT) failed: %d\n", errno);
+        goto errout;
+      }
+
+    /* Then start the watchdog timer. */
+
+    ret = ioctl(fd_wdg, WDIOC_START, 0);
+    if (ret < 0)
+      {
+        printf("wdog_main: ioctl(WDIOC_START) failed: %d\n", errno);
+        goto errout;
+      }
+
     /* -------------------------------------------------- */
     /* Main loop                                          */
 
     while (1)
     {
+        /* Then ping the watchdog */
+
+        ret = ioctl(fd_wdg, WDIOC_KEEPALIVE, 0);
+        if (ret < 0)
+          {
+            printf("wdog_main: ioctl(WDIOC_KEEPALIVE) failed: %d\n", errno);
+            goto errout;
+          }
+
         /* Send GGA to let NTRIP Caster happy */
 
         send(sock, gga, strlen(gga), 0);
@@ -515,6 +554,7 @@ nextread:
 
 errout:
     close(fd);
+    close(fd_wdg);
     return 0;
 }
 

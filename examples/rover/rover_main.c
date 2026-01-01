@@ -405,6 +405,10 @@ int main(int argc, FAR char *argv[])
 	            {
                       parse_gga(gga, &rtk_frame);
 
+                      /* Hardcode the ID to 0 */
+
+		      rtk_frame.id = 0;
+
                       if (serial_read_rmc(s_fd, rmc, sizeof(rmc)))
 	                {
                           parse_rmc(rmc, &rtk_frame);

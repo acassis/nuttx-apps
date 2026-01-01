@@ -511,8 +511,33 @@ int main(int argc, char **argv)
                     if (memmem(data.data, FRAME_SIZE, "GGA", 3) != NULL)
 	              {
                         //printf("\nReceived:\n\n%s\n", data.data);
+
 		        rtk_frame = (struct rtk_frame_s *) &data.data[FRAME_SIZE -
                                     sizeof(struct rtk_frame_s) - 2];
+
+			/* Integrity Check */
+
+                        if (rtk_frame->lat < -300000000 ||
+                            rtk_frame->lat > -50000000)
+                          {
+                            goto nextread;
+                          }
+
+                        if (rtk_frame->lon < -740000000 ||
+                            rtk_frame->lon > -340000000)
+                          {
+                            goto nextread;
+                          }
+
+                        if (rtk_frame->fix < 0 || rtk_frame->fix > 8)
+                          {
+                            goto nextread;
+                          }
+
+                        if (rtk_frame->id != 0)
+                          {
+                            goto nextread;
+                          }
 
 	                printf("\nRTK DATA:\n");
 	                printf("timestamp: %d\n", rtk_frame->timestamp);

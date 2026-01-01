@@ -264,18 +264,16 @@ int main(int argc, char **argv)
     struct sx127x_read_hdr_s data;
     struct rtk_frame_s *rtk_frame;
     //time_t last_gga = 0;
-    char gga[GGA_BUF_SZ];
     const char *server = "qrtksa1.quectel.com";
     const char *user = "Soluevo_00_0000001";
     const char *pass = "itid8x5a";
     const char *mount = "AUTO";
     const char *serial_dev = NULL;
-    const char *gga_static = NULL;
+    const char gga[GGA_BUF_SZ] = "$GNGGA,200022.400,2735.241820,S,04826.237472,W,1,31,0.56,17.2,M,2.0,M,,*7D";
     int baud = 115200;
     uint32_t timeout = 5000; /* 5s*/
     uint8_t opmode;
 
-    strcpy(gga, "\$GPGGA,123519,4807.038,N,01131.000,E,1,08,1.0,10.0,M,0.0,M,,\*5A");
     /* Open device */
 
     int fd;
@@ -417,6 +415,11 @@ int main(int argc, char **argv)
     /* -------------------------------------------------- */
     /* Main loop                                          */
 
+    time_t last_gga = 0;
+
+    send(sock, gga, strlen(gga), 0);
+    send(sock, "\r\n", 2, 0);
+
     while (1)
     {
         /* Then ping the watchdog */
@@ -430,8 +433,11 @@ int main(int argc, char **argv)
 
         /* Send GGA to let NTRIP Caster happy */
 
-        send(sock, gga, strlen(gga), 0);
-        send(sock, "\r\n", 2, 0);
+        if (gga && time(NULL) - last_gga >= 5) {
+            send(sock, gga, strlen(gga), 0);
+            send(sock, "\r\n", 2, 0);
+            last_gga = time(NULL);
+        }
 
         /* ---- RTCM downstream ---- */
         int n = recv(sock, buf, sizeof(buf), 0);

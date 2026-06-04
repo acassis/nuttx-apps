@@ -1,0 +1,32 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config EXAMPLES_UGLY_DEMO
+	tristate "uGLy Graphic Demo"
+	default n
+	select LCD_PACKEDMSFIRST if LCD
+	depends on VIDEO_FB
+	depends on GRAPHICS_UGLY
+	---help---
+		Enable the uGLy demo using video framebuffer /dev/fb0
+
+if EXAMPLES_FB
+
+config EXAMPLES_UGLY_DEMO_PROGNAME
+	string "Program name"
+	default "uGLy"
+	---help---
+		This is the name of the program that will be used when the NSH ELF
+		program is installed.
+
+config EXAMPLES_UGLY_DEMO_PRIORITY
+	int "Task priority"
+	default 100
+
+config EXAMPLES_UGLY_DEMO_STACKSIZE
+	int "Stack size"
+	default DEFAULT_TASK_STACKSIZE
+
+endif

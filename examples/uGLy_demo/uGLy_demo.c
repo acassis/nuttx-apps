@@ -519,7 +519,8 @@ int ret;
 
 int main(int argc, FAR char *argv[])
 {
-  tri_run();
+	tri_run();
+	return 0;
 }
 
 int doInitWindow() {
@@ -564,6 +565,7 @@ int doInitWindow() {
     }
 
   printf("VideoInfo:\n");
+  printf("%d x %d\n", XRES_FRAMEBUFFER , YRES_FRAMEBUFFER);
   printf("      fmt: %u\n", state.vinfo.fmt);
   printf("     xres: %u\n", state.vinfo.xres);
   printf("     yres: %u\n", state.vinfo.yres);
@@ -691,69 +693,32 @@ void graphicsShutdown(void)
     close(state.fd);
 }
 
-// Source - https://stackoverflow.com/a/3208376
-// Posted by William Whyte, modified by community. See post 'Timeline' for change history
-// Retrieved 2026-04-18, License - CC BY-SA 4.0
-
-#define BYTE_TO_BINARY_PATTERN1 "%c%c%c%c%c|%c%c%c"
-#define BYTE_TO_BINARY_PATTERN2 "%c%c%c|%c%c%c%c%c"
-
-#define BYTE_TO_BINARY(byte)  \
-  ((byte) & 0x80 ? '1' : '0'), \
-  ((byte) & 0x40 ? '1' : '0'), \
-  ((byte) & 0x20 ? '1' : '0'), \
-  ((byte) & 0x10 ? '1' : '0'), \
-  ((byte) & 0x08 ? '1' : '0'), \
-  ((byte) & 0x04 ? '1' : '0'), \
-  ((byte) & 0x02 ? '1' : '0'), \
-  ((byte) & 0x01 ? '1' : '0')
-
-
-uint16_t currentColour = 0;
 
 static void blit(FAR struct fb_state_s *state,
-                        FAR struct fb_area_s *area, uint16_t* color)
+                        FAR struct fb_area_s *area, uint32_t* color)
 {
-  FAR uint16_t *dest;
+  FAR uint32_t *dest;
   FAR uint8_t *row;
-  int x;
-  int y;
-  int ret;
-    
-    
-    ++currentColour;
-    if (currentColour > 255) {
-        currentColour = 0;
-    }
-    
-    
-    
+
   row = (FAR uint8_t *)state->act_fbmem + state->pinfo.stride * area->y;
+
   for (y = 0; y < area->h; y++)
     {
-      dest = ((FAR uint16_t *)row) + area->x;
+      dest = ((FAR uint32_t *)row) + area->x;
+
       for (x = 0; x < area->w; x++)
         {
-            
+
             uint8_t r,g,b;
-            r = 0b11111 - ((*color) & 0b1111100000000000) >> 11;
-            g = 0b111111 - ((*color) & 0b11111100000) >> 5;
-            b = 0b11111 - ((*color) & 0b11111);
+            r = ((*color) & 0xFF000000) >> 24;
+            g = ((*color) & 0x00FF0000) >> 16;
+            b = ((*color) & 0x0000FF00) >> 8;
             
-            uint16_t rgb = RGBTO16(r, g, b);
-            *dest++ = *color;
-            /*
-            if (*color == 0) {
-                printf(".");
-            } else if (*color == 0xFFFF) {
-                printf("#");
-            } else {
-                printf("$");
-            }
-             */
+            uint32_t rgb = RGBTO24(r, g, b);
+	    printf("%zu -> %d, %d, %d = %zu\n", *color, r, g, b, rgb);
+	    *dest++ = rgb;
             ++color;
         }
-       // printf("\n");
       row += state->pinfo.stride;
     }
     
@@ -779,69 +744,9 @@ static void blit(FAR struct fb_state_s *state,
     }
 }
 
-
-static void fill16(FAR struct fb_state_s *state,
-                        FAR struct fb_area_s *area, uint16_t color)
-{
-  FAR uint16_t *dest;
-  FAR uint8_t *row;
-  int x;
-  int y;
-    int ret;
-  row = (FAR uint8_t *)state->act_fbmem + state->pinfo.stride * area->y;
-  for (y = 0; y < area->h; y++)
-    {
-      dest = ((FAR uint16_t *)row) + area->x;
-      for (x = 0; x < area->w; x++)
-        {
-          *dest++ = color;
-        }
-
-      row += state->pinfo.stride;
-    }
-    
-    
-#ifdef CONFIG_FB_UPDATE
-  int yoffset = state->act_fbmem == state->fbmem ?
-                0 : state->mem2_yoffset;
-  area->y += yoffset;
-
-  ret = ioctl(state->fd, FBIO_UPDATE,
-              (unsigned long)((uintptr_t)area));
-  if (ret < 0)
-    {
-      int errcode = errno;
-      fprintf(stderr, "ERROR: ioctl(FBIO_UPDATE) failed: %d\n",
-              errcode);
-    }
-#endif
-
-  if (state->pinfo.yres_virtual == (state->vinfo.yres * 2))
-    {
-      pan_display(state);
-    }
-}
 
 void swapBuffers(void)
 {
-/*
-    for (y = 0; y < YRES_FRAMEBUFFER; ++y) {
-        for (x = 0; x < XRES_FRAMEBUFFER; ++x) {
-            uint16_t frag = framebuffer[ (XRES_FRAMEBUFFER * y) + x ];
-            
-            if (frag == 0) {
-                putchar('.');
-            } else if (frag == 0xFFFF) {
-                putchar('#');
-            } else {
-                putchar('$');
-            }
-                
-        }
-        putchar('\n');
-    }
-*/
-    
     area.x = 0;
     area.y = 0;
     area.w = XRES_FRAMEBUFFER;

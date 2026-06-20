@@ -104,8 +104,8 @@ void drawPoint(int* coords, uint8_t* colour,
 #define MAX(v1, v2) (( (v1) > (v2) ) ? (v1) : (v2) )
 
 
-#define XRES_FRAMEBUFFER 80
-#define YRES_FRAMEBUFFER 160
+#define XRES_FRAMEBUFFER 320
+#define YRES_FRAMEBUFFER 240
 
 extern FramebufferPixelFormat framebuffer[XRES_FRAMEBUFFER * YRES_FRAMEBUFFER];
 

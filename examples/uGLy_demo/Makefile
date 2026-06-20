@@ -33,4 +33,6 @@ MODULE = $(CONFIG_EXAMPLES_FB)
 CSRCS  += tri.c
 MAINSRC = uGLy_demo.c
 
+CFLAGS += -DBPP24 -DDISABLE_STENCIL_BUFFER
+
 include $(APPDIR)/Application.mk

@@ -63,10 +63,6 @@
 
 /* Configuration ************************************************************/
 
-#ifndef CONFIG_HAVE_LONG_LONG
-#  error "64-bit integer support required for NTP client"
-#endif
-
 #if defined(CONFIG_LIBC_NETDB) && !defined(CONFIG_NETUTILS_NTPCLIENT_SERVER)
 #  error "CONFIG_NETUTILS_NTPCLIENT_SERVER must be provided"
 #endif
@@ -126,6 +122,14 @@ enum ntpc_daemon_e
   NTP_STOPPED
 };
 
+enum ntpc_server_source_e
+{
+  NTP_SERVER_SOURCE_NONE = 0,
+  NTP_SERVER_SOURCE_CONFIG,
+  NTP_SERVER_SOURCE_DHCP,
+  NTP_SERVER_SOURCE_EXPLICIT
+};
+
 /* This type describes the state of the NTP client daemon.  Only one
  * instance of the NTP daemon is permitted in this implementation.
  */
@@ -133,11 +137,17 @@ enum ntpc_daemon_e
 struct ntpc_daemon_s
 {
   uint8_t state;       /* See enum ntpc_daemon_e */
+  uint8_t source;      /* See enum ntpc_server_source_e */
+  bool dhcp_registered;
   sem_t lock;          /* Used to protect the whole structure */
   sem_t sync;          /* Used to synchronize start and stop events */
   pid_t pid;           /* Task ID of the NTP daemon */
   sq_queue_t kod_list; /* KoD excluded server addresses */
   int family;          /* Allowed address family */
+
+  /* DHCP-provided server list */
+
+  FAR char *dhcp_servers;
 };
 
 union ntp_addr_u
@@ -194,11 +204,14 @@ struct ntp_kod_exclude_s
 static struct ntpc_daemon_s g_ntpc_daemon =
 {
   NTP_NOT_RUNNING,
+  NTP_SERVER_SOURCE_NONE,
+  false,
   SEM_INITIALIZER(1),
   SEM_INITIALIZER(0),
   -1,
   { NULL, NULL },
   AF_UNSPEC,         /* Default is both IPv4 and IPv6 */
+  NULL,
 };
 
 static struct ntp_sample_s g_last_samples
@@ -208,6 +221,117 @@ unsigned int g_last_nsamples = 0;
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+static int ntpc_daemon(int argc, FAR char **argv);
+#ifdef CONFIG_NETUTILS_DHCPC
+static int ntpc_set_servers_from_dhcp(FAR const char *ntp_server_list);
+
+static FAR char *ntpc_dup_server_list(FAR const char *ntp_server_list)
+{
+  if (ntp_server_list == NULL || ntp_server_list[0] == '\0')
+    {
+      return NULL;
+    }
+
+  return strdup(ntp_server_list);
+}
+#endif
+
+static FAR const char *ntpc_select_server_list(FAR uint8_t *source)
+{
+  if (g_ntpc_daemon.dhcp_servers != NULL &&
+      g_ntpc_daemon.dhcp_servers[0] != '\0')
+    {
+      *source = NTP_SERVER_SOURCE_DHCP;
+      return g_ntpc_daemon.dhcp_servers;
+    }
+
+  if (CONFIG_NETUTILS_NTPCLIENT_SERVER[0] != '\0')
+    {
+      *source = NTP_SERVER_SOURCE_CONFIG;
+      return CONFIG_NETUTILS_NTPCLIENT_SERVER;
+    }
+
+  *source = NTP_SERVER_SOURCE_NONE;
+  return NULL;
+}
+
+#ifdef CONFIG_NETUTILS_DHCPC
+static void ntpc_dhcp_notify(FAR const char *ntp_server_list, FAR void *arg)
+{
+  int ret;
+
+  UNUSED(arg);
+
+  ret = ntpc_set_servers_from_dhcp(ntp_server_list);
+  if (ret < 0)
+    {
+      nwarn("WARNING: failed to update DHCP NTP server list: %d\n", ret);
+    }
+}
+
+static int ntpc_register_dhcp(void)
+{
+  int ret;
+
+  sem_wait(&g_ntpc_daemon.lock);
+  if (g_ntpc_daemon.dhcp_registered)
+    {
+      sem_post(&g_ntpc_daemon.lock);
+      return OK;
+    }
+
+  g_ntpc_daemon.dhcp_registered = true;
+  sem_post(&g_ntpc_daemon.lock);
+
+  ret = netlib_register_dhcp_ntp_callback(ntpc_dhcp_notify, NULL);
+  if (ret < 0)
+    {
+      sem_wait(&g_ntpc_daemon.lock);
+      g_ntpc_daemon.dhcp_registered = false;
+      sem_post(&g_ntpc_daemon.lock);
+      return ret;
+    }
+
+  return OK;
+}
+#endif
+
+static int ntpc_start_selected(FAR const char *ntp_server_list,
+                               uint8_t source)
+{
+  FAR char *task_argv[] =
+    {
+      (FAR char *)ntp_server_list,
+      NULL
+    };
+
+  g_ntpc_daemon.state = NTP_STARTED;
+  g_ntpc_daemon.source = source;
+  g_ntpc_daemon.pid =
+    task_create("NTP daemon", CONFIG_NETUTILS_NTPCLIENT_SERVERPRIO,
+                CONFIG_NETUTILS_NTPCLIENT_STACKSIZE, ntpc_daemon,
+                task_argv);
+
+  if (g_ntpc_daemon.pid < 0)
+    {
+      int errval = errno;
+      DEBUGASSERT(errval > 0);
+
+      g_ntpc_daemon.state = NTP_STOPPED;
+      g_ntpc_daemon.source = NTP_SERVER_SOURCE_NONE;
+      nerr("ERROR: Failed to start the NTP daemon: %d\n", errval);
+      return -errval;
+    }
+
+  do
+    {
+      sem_wait(&g_ntpc_daemon.sync);
+    }
+  while (g_ntpc_daemon.state == NTP_STARTED);
+
+  return g_ntpc_daemon.pid;
+}
 
 /****************************************************************************
  * Name: sample_cmp
@@ -443,7 +567,7 @@ static int32_t ntp_nsecpart(int64_t time)
 {
   /* Get fraction part converted to nanoseconds. */
 
-  return (((int64_t)((uint64_t)time << 32) >> 32) * NSEC_PER_SEC) >> 32;
+  return (((time << 32) >> 32) * NSEC_PER_SEC) >> 32;
 }
 
 /****************************************************************************
@@ -465,7 +589,7 @@ static uint64_t timespec2ntp(FAR const struct timespec *ts)
 
   /* Set seconds part. */
 
-  ntp_time += (uint64_t)(ts->tv_sec) << 32;
+  ntp_time += ts->tv_sec << 32;
 
   return ntp_time;
 }
@@ -523,8 +647,8 @@ static void ntpc_calculate_offset(FAR int64_t *offset, FAR int64_t *delay,
    *      http://nicolas.aimon.fr/2014/12/05/timesync/
    */
 
-  *offset = (int64_t)((remote_recvtime / 2 - local_xmittime / 2) +
-                     (remote_xmittime / 2 - local_recvtime / 2));
+  *offset = (remote_recvtime / 2 - local_xmittime / 2) +
+            (remote_xmittime / 2 - local_recvtime / 2);
 
   /* Calculate roundtrip delay. */
 
@@ -583,13 +707,13 @@ static void ntpc_settime(int64_t offset, FAR struct timespec *start_realtime,
 
   diffms_real = curr_realtime.tv_sec - start_realtime->tv_sec;
   diffms_real *= 1000;
-  diffms_real += (int64_t)(curr_realtime.tv_nsec -
-                           start_realtime->tv_nsec) / (1000 * 1000);
+  diffms_real += (curr_realtime.tv_nsec -
+                  start_realtime->tv_nsec) / (1000 * 1000);
 
   diffms_mono = curr_monotonic.tv_sec - start_monotonic->tv_sec;
   diffms_mono *= 1000;
-  diffms_mono += (int64_t)(curr_monotonic.tv_nsec -
-                           start_monotonic->tv_nsec) / (1000 * 1000);
+  diffms_mono += (curr_monotonic.tv_nsec -
+                  start_monotonic->tv_nsec) / (1000 * 1000);
 
   /* Detect if real-time has been altered by other task. */
 
@@ -1365,14 +1489,14 @@ static int ntpc_daemon(int argc, FAR char **argv)
 
               if (offset1 > 0 && offset2 > 0)
                 {
-                  offset = ((uint64_t)offset1 + (uint64_t)offset2) / 2;
+                  offset = (offset1 + offset2) / 2;
                 }
               else if (offset1 < 0 && offset2 < 0)
                 {
                   offset1 = -offset1;
                   offset2 = -offset2;
 
-                  offset = ((uint64_t)offset1 + (uint64_t)offset2) / 2;
+                  offset = (offset1 + offset2) / 2;
 
                   offset = -offset;
                 }
@@ -1490,11 +1614,12 @@ void ntpc_dualstack_family(int family)
 
 int ntpc_start_with_list(FAR const char *ntp_server_list)
 {
-  FAR char *task_argv[] =
+  int ret;
+
+  if (ntp_server_list == NULL || ntp_server_list[0] == '\0')
     {
-      (FAR char *)ntp_server_list,
-      NULL
-    };
+      return -EINVAL;
+    }
 
   /* Is the NTP in a non-running state? */
 
@@ -1502,34 +1627,10 @@ int ntpc_start_with_list(FAR const char *ntp_server_list)
   if (g_ntpc_daemon.state == NTP_NOT_RUNNING ||
       g_ntpc_daemon.state == NTP_STOPPED)
     {
-      /* Start the NTP daemon */
-
-      g_ntpc_daemon.state = NTP_STARTED;
-      g_ntpc_daemon.pid =
-        task_create("NTP daemon", CONFIG_NETUTILS_NTPCLIENT_SERVERPRIO,
-                    CONFIG_NETUTILS_NTPCLIENT_STACKSIZE, ntpc_daemon,
-                    task_argv);
-
-      /* Handle failures to start the NTP daemon */
-
-      if (g_ntpc_daemon.pid < 0)
-        {
-          int errval = errno;
-          DEBUGASSERT(errval > 0);
-
-          g_ntpc_daemon.state = NTP_STOPPED;
-          nerr("ERROR: Failed to start the NTP daemon: %d\n", errval);
-          sem_post(&g_ntpc_daemon.lock);
-          return -errval;
-        }
-
-      /* Wait for any daemon state change */
-
-      do
-        {
-          sem_wait(&g_ntpc_daemon.sync);
-        }
-      while (g_ntpc_daemon.state == NTP_STARTED);
+      ret = ntpc_start_selected(ntp_server_list,
+                                NTP_SERVER_SOURCE_EXPLICIT);
+      sem_post(&g_ntpc_daemon.lock);
+      return ret;
     }
 
   sem_post(&g_ntpc_daemon.lock);
@@ -1550,8 +1651,104 @@ int ntpc_start_with_list(FAR const char *ntp_server_list)
 
 int ntpc_start(void)
 {
-  return ntpc_start_with_list(CONFIG_NETUTILS_NTPCLIENT_SERVER);
+  FAR const char *ntp_server_list;
+  uint8_t source;
+  int ret;
+
+#ifdef CONFIG_NETUTILS_DHCPC
+  ret = ntpc_register_dhcp();
+  if (ret < 0)
+    {
+      return ret;
+    }
+#endif
+
+  sem_wait(&g_ntpc_daemon.lock);
+  if (g_ntpc_daemon.state != NTP_NOT_RUNNING &&
+      g_ntpc_daemon.state != NTP_STOPPED)
+    {
+      ret = g_ntpc_daemon.pid;
+      sem_post(&g_ntpc_daemon.lock);
+      return ret;
+    }
+
+  ntp_server_list = ntpc_select_server_list(&source);
+  if (ntp_server_list == NULL)
+    {
+      g_ntpc_daemon.source = NTP_SERVER_SOURCE_NONE;
+      sem_post(&g_ntpc_daemon.lock);
+      return -ENOENT;
+    }
+
+  ret = ntpc_start_selected(ntp_server_list, source);
+  sem_post(&g_ntpc_daemon.lock);
+  return ret;
 }
+
+#ifdef CONFIG_NETUTILS_DHCPC
+static int ntpc_set_servers_from_dhcp(FAR const char *ntp_server_list)
+{
+  FAR char *new_servers;
+  FAR char *old_servers;
+  bool start = false;
+  bool restart = false;
+  int ret = OK;
+
+  new_servers = ntpc_dup_server_list(ntp_server_list);
+  if (ntp_server_list != NULL && ntp_server_list[0] != '\0' &&
+      new_servers == NULL)
+    {
+      return -ENOMEM;
+    }
+
+  sem_wait(&g_ntpc_daemon.lock);
+
+  if ((g_ntpc_daemon.dhcp_servers == NULL && new_servers == NULL) ||
+      (g_ntpc_daemon.dhcp_servers != NULL && new_servers != NULL &&
+       strcmp(g_ntpc_daemon.dhcp_servers, new_servers) == 0))
+    {
+      sem_post(&g_ntpc_daemon.lock);
+      free(new_servers);
+      return OK;
+    }
+
+  old_servers = g_ntpc_daemon.dhcp_servers;
+  g_ntpc_daemon.dhcp_servers = new_servers;
+
+  if ((g_ntpc_daemon.source == NTP_SERVER_SOURCE_DHCP ||
+       g_ntpc_daemon.source == NTP_SERVER_SOURCE_CONFIG) &&
+      (g_ntpc_daemon.state == NTP_STARTED ||
+       g_ntpc_daemon.state == NTP_RUNNING))
+    {
+      restart = true;
+    }
+  else if (g_ntpc_daemon.source == NTP_SERVER_SOURCE_NONE &&
+           new_servers != NULL &&
+           (g_ntpc_daemon.state == NTP_NOT_RUNNING ||
+            g_ntpc_daemon.state == NTP_STOPPED))
+    {
+      start = true;
+    }
+
+  sem_post(&g_ntpc_daemon.lock);
+  free(old_servers);
+
+  if (restart)
+    {
+      ret = ntpc_stop();
+      if (ret >= 0 && new_servers != NULL)
+        {
+          ret = ntpc_start();
+        }
+    }
+  else if (start)
+    {
+      ret = ntpc_start();
+    }
+
+  return ret;
+}
+#endif
 
 /****************************************************************************
  * Name: ntpc_stop

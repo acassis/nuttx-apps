@@ -75,6 +75,10 @@ ifeq ($(CONFIG_TESTING_OSTEST_AIO),y)
 CSRCS += aio.c
 endif
 
+ifeq ($(CONFIG_TESTING_OSTEST_MULTIUSER),y)
+CSRCS += multiuser.c
+endif
+
 ifeq ($(CONFIG_SCHED_WAITPID),y)
 CSRCS += waitpid.c
 endif

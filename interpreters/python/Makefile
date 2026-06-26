@@ -84,6 +84,13 @@ $(CPYTHON_UNPACKNAME): $(CPYTHON_ZIP)
 	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0012-hack-place-_PyRuntime-structure-into-PSRAM-bss-regio.patch
 	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0013-transform-functions-used-by-NuttX-to-lowercase.patch
 	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0014-insert-prefix-to-list_length-to-avoid-symbol-collisi.patch
+	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0015-keep-ensurepip-in-stdlib-archive.patch
+	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0016-fix-timezone-offset-check-when-time-t-is-unsigned.patch
+	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0017-stdlib-zip-keep-pydecimal-and-trim-tooling-extras.patch
+	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0018-ignore-chmod-on-nuttx-like-wasi.patch
+	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0019-undef-get_errno-set_errno-to-avoid-nuttx-macro-coll.patch
+	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0020-ctypes-skip-pythonapi-on-nuttx.patch
+	$(Q) patch -p1 -d $(CPYTHON_UNPACKNAME) < patch$(DELIM)0021-posixmodule-ignore-utime-enosys-on-nuttx.patch
 
 $(HOSTPYTHON):
 	mkdir -p $(HOSTBUILD)
@@ -92,6 +99,7 @@ $(HOSTPYTHON):
 			cd $(HOSTBUILD) && $(CPYTHON_PATH)/configure \
 			 --with-pydebug \
 			 --prefix=$(HOSTINSTALL) \
+			 --disable-test-modules \
 		 )
 	$(MAKE) -C $(HOSTBUILD) install
 
@@ -123,6 +131,9 @@ $(SETUP_LOCAL):
 ifneq ($(CONFIG_ARCH_HAVE_FORK),y)
 	@echo "_posixsubprocess" >> $@
 endif
+ifneq ($(CONFIG_LIBC_DLFCN),y)
+	@echo "_ctypes" >> $@
+endif
 
 # For the Python's `configure` script, please consider the following
 # when building for NuttX:
@@ -152,7 +163,7 @@ $(TARGETBUILD)/Makefile: $(HOSTPYTHON) $(CONFIG_SITE) $(SETUP_LOCAL)
 			AR="$(AR)" \
 			ARFLAGS=" " \
 			MACHDEP="$(MACHDEP)" \
-			OPT="-g -O0 -Wall" \
+			OPT="-Os" \
 			CONFIG_SITE="$(CONFIG_SITE)" \
 			$(CPYTHON_PATH)/configure \
 			 --prefix=${TARGETINSTALL} \
@@ -163,13 +174,64 @@ $(TARGETBUILD)/Makefile: $(HOSTPYTHON) $(CONFIG_SITE) $(SETUP_LOCAL)
 			 --without-mimalloc \
 			 --without-pymalloc \
 			 --disable-test-modules \
+			 --with-ensurepip=no \
 		)
+	$(Q) sed -i 's/^#define HAVE_LIBB2 1/\/* #undef HAVE_LIBB2 *\//' $(TARGETBUILD)/pyconfig.h
+	$(Q) sed -i 's/-lb2//g' $(TARGETBUILD)/Makefile
+
+BUNDLED_WHEELS_DIR = $(CPYTHON_PATH)/Lib/ensurepip/_bundled
+# PyPI downloads use the host system pip, not $(HOSTPYTHON)'s ensurepip bundle:
+# pip 24.x vendors urllib3 that breaks on Python 3.13 (zlib.Decompress.unused_data).
+HOSTPIP = python3 -m pip
 
 $(TARGETLIBPYTHON): $(TARGETBUILD)/Makefile
+ifneq ($(or $(filter y,$(CONFIG_INTERPRETERS_CPYTHON_ENABLE_PIP)),$(filter y,$(CONFIG_INTERPRETERS_CPYTHON_INSTALL_NUTTX_PACKAGE))),)
+	$(Q) mkdir -p $(BUNDLED_WHEELS_DIR)
+endif
+ifeq ($(CONFIG_INTERPRETERS_CPYTHON_ENABLE_PIP),y)
+	$(Q) ( \
+		PIP_WHEEL_VERSION=$$($(HOSTPYTHON) -c "import ensurepip; print(ensurepip._PIP_VERSION)"); \
+		PIP_WHEEL=$(BUNDLED_WHEELS_DIR)/pip-$${PIP_WHEEL_VERSION}-py3-none-any.whl; \
+		if [ ! -f "$${PIP_WHEEL}" ]; then \
+			echo "Fetching pip wheel $${PIP_WHEEL_VERSION} for ensurepip bundle"; \
+			$(HOSTPIP) download --only-binary=:all: --no-deps --dest $(BUNDLED_WHEELS_DIR) pip==$${PIP_WHEEL_VERSION}; \
+		fi; \
+		echo "Pre-compiling pip wheel with build Python (must match embedded CPython version)"; \
+		$(HOSTPYTHON) $(CURDIR)/repack_wheel_add_pyc.py --package pip "$${PIP_WHEEL}"; \
+	)
+endif
+ifeq ($(CONFIG_INTERPRETERS_CPYTHON_INSTALL_NUTTX_PACKAGE),y)
+	$(Q) ( \
+		set -e; \
+		NUTTX_WHEEL=$$(ls $(BUNDLED_WHEELS_DIR)/nuttx_periphery-*-py3-none-any.whl 2>/dev/null | head -1 || true); \
+		if [ -z "$${NUTTX_WHEEL}" ]; then \
+			echo "Fetching latest nuttx-periphery wheel for ensurepip bundle"; \
+			$(HOSTPIP) download --only-binary=:all: --no-deps --dest $(BUNDLED_WHEELS_DIR) nuttx-periphery; \
+			NUTTX_WHEEL=$$(ls $(BUNDLED_WHEELS_DIR)/nuttx_periphery-*-py3-none-any.whl); \
+		fi; \
+		echo "Pre-compiling nuttx-periphery wheel with build Python (must match embedded CPython version)"; \
+		$(HOSTPYTHON) $(CURDIR)/repack_wheel_add_pyc.py --package nuttx_periphery "$${NUTTX_WHEEL}"; \
+	)
+endif
 	$(MAKE) -C $(TARGETBUILD) regen-frozen
 	$(MAKE) -C $(TARGETBUILD) libpython$(CPYTHON_VERSION_MINOR).a wasm_stdlib
 	$(Q) ( cp $(TARGETBUILD)/libpython$(CPYTHON_VERSION_MINOR).a $(TARGETLIBPYTHON) )
 	$(Q) $(UNPACK) $(TARGETMODULESPACK) -d $(TARGETMODULES)/python$(CPYTHON_VERSION_MINOR)
+ifneq ($(or $(filter y,$(CONFIG_INTERPRETERS_CPYTHON_ENABLE_PIP)),$(filter y,$(CONFIG_INTERPRETERS_CPYTHON_INSTALL_NUTTX_PACKAGE))),)
+	$(Q) mkdir -p $(TARGETMODULES)/python$(CPYTHON_VERSION_MINOR)/site-packages
+	$(Q) ( \
+		set -e; \
+		BUNDLED_DIR=$(TARGETMODULES)/python$(CPYTHON_VERSION_MINOR)/ensurepip/_bundled; \
+		SITE_PACKAGES=$(TARGETMODULES)/python$(CPYTHON_VERSION_MINOR)/site-packages; \
+		: > "$${SITE_PACKAGES}/bundled_wheels.pth"; \
+		for wheel in $${BUNDLED_DIR}/*.whl; do \
+			[ -f "$${wheel}" ] || continue; \
+			whl_name=$$(basename "$${wheel}"); \
+			echo "Pre-installing wheel via zipimport into target sys.path: $${whl_name}"; \
+			echo "../ensurepip/_bundled/$${whl_name}" >> "$${SITE_PACKAGES}/bundled_wheels.pth"; \
+		done; \
+	)
+endif
 
 MODULE    = $(CONFIG_INTERPRETERS_CPYTHON)
 

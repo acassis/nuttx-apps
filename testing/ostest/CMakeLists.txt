@@ -60,6 +60,10 @@ if(CONFIG_TESTING_OSTEST)
     list(APPEND SRCS aio.c)
   endif()
 
+  if(CONFIG_TESTING_OSTEST_MULTIUSER)
+    list(APPEND SRCS multiuser.c)
+  endif()
+
   if(CONFIG_SCHED_WAITPID)
     list(APPEND SRCS waitpid.c)
   endif()

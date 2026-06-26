@@ -45,6 +45,13 @@
 #include <errno.h>
 #include <nuttx/debug.h>
 
+#ifdef CONFIG_LIBC_PASSWD_FILE
+#  include <pwd.h>
+#endif
+#ifdef CONFIG_LIBC_GROUP_FILE
+#  include <grp.h>
+#endif
+
 #include "nsh.h"
 
 #if !defined(CONFIG_DISABLE_MOUNTPOINT)
@@ -340,6 +347,44 @@ static inline int ls_specialdir(FAR const char *dir)
 
   return (strcmp(dir, ".")  == 0 || strcmp(dir, "..") == 0);
 }
+
+#ifdef CONFIG_SCHED_USER_IDENTITY
+/****************************************************************************
+ * Name: nsh_ls_printowner
+ ****************************************************************************/
+
+static void nsh_ls_printowner(FAR struct nsh_vtbl_s *vtbl, uid_t uid,
+                              gid_t gid)
+{
+#ifdef CONFIG_LIBC_PASSWD_FILE
+  FAR struct passwd *pwd;
+
+  pwd = getpwuid(uid);
+  if (pwd != NULL && pwd->pw_name != NULL)
+    {
+      nsh_output(vtbl, "%8s", pwd->pw_name);
+    }
+  else
+#endif
+    {
+      nsh_output(vtbl, "%8d", (int)uid);
+    }
+
+#ifdef CONFIG_LIBC_GROUP_FILE
+  FAR struct group *grp;
+
+  grp = getgrgid(gid);
+  if (grp != NULL && grp->gr_name != NULL)
+    {
+      nsh_output(vtbl, "%8s", grp->gr_name);
+    }
+  else
+#endif
+    {
+      nsh_output(vtbl, "%8d", (int)gid);
+    }
+}
+#endif /* CONFIG_SCHED_USER_IDENTITY */
 #endif
 
 /****************************************************************************
@@ -511,8 +556,7 @@ static int ls_handler(FAR struct nsh_vtbl_s *vtbl, FAR const char *dirpath,
 #ifdef CONFIG_SCHED_USER_IDENTITY
       if ((lsflags & LSFLAGS_UID_GID) != 0)
         {
-          nsh_output(vtbl, "%8d", buf.st_uid);
-          nsh_output(vtbl, "%8d", buf.st_gid);
+          nsh_ls_printowner(vtbl, buf.st_uid, buf.st_gid);
         }
 #endif
 
@@ -837,6 +881,129 @@ int cmd_cat(FAR struct nsh_vtbl_s *vtbl, int argc, FAR char **argv)
         }
 
       free(buf);
+    }
+
+  return ret;
+}
+#endif
+
+/****************************************************************************
+ * Name: cmd_chmod
+ *
+ * Description:
+ *   chmod <octal-mode> <path>
+ *
+ *   Only numeric (octal) modes are supported.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_FS_PERMISSION) && !defined(CONFIG_NSH_DISABLE_CHMOD)
+int cmd_chmod(FAR struct nsh_vtbl_s *vtbl, int argc, FAR char **argv)
+{
+  FAR char *fullpath;
+  FAR char *endptr;
+  long      mode;
+  int       ret = ERROR;
+
+  UNUSED(argc);
+
+  mode = strtol(argv[1], &endptr, 8);
+  if (endptr == argv[1] || *endptr != '\0' || mode < 0 || mode > 0777)
+    {
+      nsh_error(vtbl, g_fmtarginvalid, argv[0]);
+      return ERROR;
+    }
+
+  fullpath = nsh_getfullpath(vtbl, argv[2]);
+  if (fullpath != NULL)
+    {
+      ret = chmod(fullpath, (mode_t)mode);
+      if (ret < 0)
+        {
+          nsh_error(vtbl, g_fmtcmdfailed, argv[0], "chmod", NSH_ERRNO);
+        }
+
+      nsh_freefullpath(fullpath);
+    }
+
+  return ret;
+}
+#endif
+
+/****************************************************************************
+ * Name: cmd_chown
+ *
+ * Description:
+ *   chown <uid>[:<gid>] <path>
+ *   chown [<uid>]:<gid> <path>
+ *
+ *   Only numeric uid/gid forms are supported.  Empty uid or gid fields
+ *   leave that side unchanged.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_FS_PERMISSION) && !defined(CONFIG_NSH_DISABLE_CHOWN)
+int cmd_chown(FAR struct nsh_vtbl_s *vtbl, int argc, FAR char **argv)
+{
+  FAR const char *spec = argv[1];
+  FAR char       *endptr;
+  FAR char       *fullpath;
+  long            value;
+  uid_t           uid = (uid_t)-1;
+  gid_t           gid = (gid_t)-1;
+  int             ret = ERROR;
+
+  UNUSED(argc);
+
+  value = strtol(spec, &endptr, 10);
+  if (endptr != spec)
+    {
+      if (value < 0)
+        {
+          nsh_error(vtbl, g_fmtarginvalid, argv[0]);
+          return ERROR;
+        }
+
+      uid = (uid_t)value;
+    }
+
+  if (*endptr == ':')
+    {
+      FAR const char *gidstr = endptr + 1;
+      if (*gidstr != '\0')
+        {
+          value = strtol(gidstr, &endptr, 10);
+          if (*endptr != '\0' || value < 0)
+            {
+              nsh_error(vtbl, g_fmtarginvalid, argv[0]);
+              return ERROR;
+            }
+
+          gid = (gid_t)value;
+        }
+    }
+  else if (*endptr != '\0')
+    {
+      nsh_error(vtbl, g_fmtarginvalid, argv[0]);
+      return ERROR;
+    }
+
+  if (uid == (uid_t)-1 && gid == (gid_t)-1)
+    {
+      nsh_error(vtbl, g_fmtarginvalid, argv[0]);
+      return ERROR;
+    }
+
+  fullpath = nsh_getfullpath(vtbl, argv[2]);
+  if (fullpath != NULL)
+    {
+      ret = lchown(fullpath, uid, gid);
+      if (ret < 0)
+        {
+          nsh_error(vtbl, g_fmtcmdfailed, argv[0], "chown", NSH_ERRNO);
+        }
+
+      nsh_freefullpath(fullpath);
     }
 
   return ret;

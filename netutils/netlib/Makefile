@@ -57,6 +57,7 @@ CSRCS += netlib_iptables.c
 endif
 ifeq ($(CONFIG_NETUTILS_DHCPC),y)
 CSRCS += netlib_obtainipv4addr.c
+CSRCS += netlib_dhcp_ntp.c
 endif
 endif
 
@@ -156,8 +157,10 @@ ifeq ($(CONFIG_MM_IOB),y)
 CSRCS += netlib_getiobinfo.c
 endif
 
+CSRCS += netlib_checkipconnectivity.c
+
 ifeq ($(CONFIG_NETUTILS_PING),y)
-CSRCS += netlib_checkipconnectivity.c netlib_checkifconnectivity.c
+CSRCS += netlib_checkifconnectivity.c
 endif
 
 CSRCS += netlib_checkhttpconnectivity.c

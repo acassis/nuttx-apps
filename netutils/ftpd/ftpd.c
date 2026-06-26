@@ -627,6 +627,11 @@ static bool ftpd_account_login(FAR struct ftpd_session_s *session,
       if (account->home != NULL)
         {
           home = strdup(account->home);
+          if (home == NULL)
+            {
+              ftpd_account_free(account);
+              return false;
+            }
         }
 
       flags = account->flags;
@@ -645,6 +650,11 @@ static bool ftpd_account_login(FAR struct ftpd_session_s *session,
         {
           home = strdup(home);
         }
+
+      if (home == NULL)
+        {
+          return false;
+        }
     }
 
   if ((flags & FTPD_ACCOUNTFLAG_ADMIN) != 0)
@@ -652,6 +662,12 @@ static bool ftpd_account_login(FAR struct ftpd_session_s *session,
       /* admin user */
 
       session->home = strdup("/");
+      if (session->home == NULL)
+        {
+          free(home);
+          return false;
+        }
+
       session->work = home;
     }
   else
@@ -660,6 +676,12 @@ static bool ftpd_account_login(FAR struct ftpd_session_s *session,
 
       session->home = home;
       session->work = strdup("/");
+      if (session->work == NULL)
+        {
+          free(home);
+          session->home = NULL;
+          return false;
+        }
     }
 
   return true;
@@ -2305,11 +2327,11 @@ static int ftpd_listbuffer(FAR struct ftpd_session_s *session,
 
       /* time */
 
-      memcpy(&tm, localtime((FAR const time_t *)&st->st_mtime), sizeof(tm));
+      memcpy(&tm, localtime(&st->st_mtime), sizeof(tm));
       offset += snprintf(&buffer[offset], buflen - offset, " %s %2u",
                          g_monthtab[tm.tm_mon], tm.tm_mday);
       now = time(0);
-      if ((now - st->st_mtime) > (time_t)(60 * 60 * 24 * 180))
+      if (now - st->st_mtime > 60 * 60 * 24 * 180)
         {
           offset += snprintf(&buffer[offset], buflen - offset, " %5u",
                              tm.tm_year + 1900);
@@ -2517,6 +2539,17 @@ static int ftpd_command_user(FAR struct ftpd_session_s *session)
       session->loggedin = false;
       session->home     = strdup(home == NULL ? "/" : home);
       session->work     = strdup("/");
+      if (session->home == NULL || session->work == NULL)
+        {
+          free(session->home);
+          free(session->work);
+          session->home = NULL;
+          session->work = NULL;
+
+          return ftpd_response(session->cmd.sd, session->txtimeout,
+                               g_respfmt1, 451, ' ',
+                               "Memory exhausted !");
+        }
 
       return ftpd_response(session->cmd.sd, session->txtimeout,
                            g_respfmt1, 230, ' ', "Login successful.");
@@ -3735,11 +3768,7 @@ static int ftpd_command_appe(FAR struct ftpd_session_s *session)
 
 static int ftpd_command_rest(FAR struct ftpd_session_s *session)
 {
-#ifdef CONFIG_HAVE_LONG_LONG
   session->restartpos = (off_t)atoll(session->param);
-#else
-  session->restartpos = (off_t)atoi(session->param);
-#endif
   session->flags |= FTPD_SESSIONFLAG_RESTARTPOS;
 
   return ftpd_response(session->cmd.sd, session->txtimeout,

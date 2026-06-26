@@ -381,6 +381,19 @@ static int user_main(int argc, char *argv[])
       check_test_memory_usage();
 #endif
 
+#if defined(CONFIG_TESTING_OSTEST_MULTIUSER) && defined(CONFIG_SCHED_USER_IDENTITY)
+      /* Multi-user identity and file permission regression tests */
+
+      printf("\nuser_main: multi-user test\n");
+      if (multiuser_test() != 0)
+        {
+          printf("user_main: ERROR multi-user test failed\n");
+          ASSERT(false);
+        }
+
+      check_test_memory_usage();
+#endif
+
 #if !defined(CONFIG_DISABLE_PTHREAD) && defined(CONFIG_BUILD_FLAT) && \
     defined(CONFIG_SCHED_WORKQUEUE)
       /* Check work queues */

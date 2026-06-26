@@ -168,6 +168,14 @@ static const struct cmdmap_s g_cmdmap[] =
   CMD_MAP("cd",       cmd_cd,       1, 2, "[<dir-path>|-|~|..]"),
 #endif
 
+#if defined(CONFIG_FS_PERMISSION) && !defined(CONFIG_NSH_DISABLE_CHMOD)
+  CMD_MAP("chmod",    cmd_chmod,    3, 3, "<octal-mode> <path>"),
+#endif
+
+#if defined(CONFIG_FS_PERMISSION) && !defined(CONFIG_NSH_DISABLE_CHOWN)
+  CMD_MAP("chown",    cmd_chown,    3, 3, "[<uid>][:<gid>] <path>"),
+#endif
+
 #ifndef CONFIG_NSH_DISABLE_CP
   CMD_MAP("cp",       cmd_cp,       3, 4, "[-r] <source-path> <dest-path>"),
 #endif
@@ -246,6 +254,10 @@ static const struct cmdmap_s g_cmdmap[] =
 
 #ifndef CONFIG_NSH_DISABLE_FREE
   CMD_MAP("free",     cmd_free,     1, 1, NULL),
+#endif
+
+#if defined(CONFIG_SCHED_USER_IDENTITY) && !defined(CONFIG_NSH_DISABLE_ID)
+  CMD_MAP("id",       cmd_id,       1, 1, NULL),
 #endif
 
 #ifdef CONFIG_DEBUG_MM
@@ -563,6 +575,10 @@ static const struct cmdmap_s g_cmdmap[] =
 #endif
 #endif /* CONFIG_NSH_DISABLE_SET */
 
+#if defined(CONFIG_SCHED_USER_IDENTITY) && !defined(CONFIG_NSH_DISABLE_SU)
+  CMD_MAP("su",       cmd_su,       1, 2, "[<username>]"),
+#endif
+
 #ifndef CONFIG_NSH_DISABLE_SHUTDOWN
 #if defined(CONFIG_BOARDCTL_POWEROFF) && defined(CONFIG_BOARDCTL_RESET)
   CMD_MAP("shutdown", cmd_shutdown, 1, 2, "[--reboot]"),
@@ -625,6 +641,10 @@ static const struct cmdmap_s g_cmdmap[] =
 #  ifndef CONFIG_NSH_DISABLE_TRUNCATE
   CMD_MAP("truncate", cmd_truncate, 4, 4, "-s <length> <file-path>"),
 #  endif
+#endif
+
+#if defined(CONFIG_SCHED_USER_IDENTITY) && !defined(CONFIG_NSH_DISABLE_WHOAMI)
+  CMD_MAP("whoami",   cmd_whoami,   1, 1, NULL),
 #endif
 
 #ifndef CONFIG_NSH_DISABLE_UNAME

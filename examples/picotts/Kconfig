@@ -1,0 +1,7 @@
+config EXAMPLES_PICOTTS
+	bool "PicoTTS example"
+	default n
+	depends on AUDIOUTILS_PICOTTS
+	---help---
+		Enable the PicoTTS text-to-speech example application.
+		Usage: picotts "text to speak"

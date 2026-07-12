@@ -1,0 +1,63 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+menuconfig AUDIOUTILS_PICOTTS
+	bool "Pico TTS Text-to-Speech"
+	default n
+	---help---
+		Pico TTS is a text-to-speech engine originally from Android/SVOX.
+		This port provides TTS for NuttX with support for English (US/UK),
+		German, French, Italian, and Spanish.
+
+		Resources: ~175KB code, ~800KB language data, ~1.1MB RAM
+
+if AUDIOUTILS_PICOTTS
+
+choice
+	prompt "Voice language"
+	default PICOTTS_LANGUAGE_EN_US
+
+config PICOTTS_LANGUAGE_EN_US
+	bool "English (US)"
+
+config PICOTTS_LANGUAGE_EN_GB
+	bool "English (UK)"
+
+endchoice
+
+config PICOTTS_TA_RESOURCE
+	string "TA resource path"
+	default "/romfs/en-US_ta.bin" if PICOTTS_LANGUAGE_EN_US
+	default "/romfs/en-GB_ta.bin" if PICOTTS_LANGUAGE_EN_GB
+
+config PICOTTS_SG_RESOURCE
+	string "SG resource path"
+	default "/romfs/en-US_lh0_sg.bin" if PICOTTS_LANGUAGE_EN_US
+	default "/romfs/en-GB_kh0_sg.bin" if PICOTTS_LANGUAGE_EN_GB
+
+config PICOTTS_AUDIO_DEVICE
+	string "Audio output device"
+	default "/dev/audio0"
+
+config PICOTTS_INPUT_QUEUE_SIZE
+	int "TTS input queue size (bytes)"
+	default 256
+
+config PICOTTS_PRIORITY
+	int "TTS thread priority"
+	default 120
+
+config PICOTTS_STACK_SIZE
+	int "TTS thread stack size"
+	default 8192
+
+config PICOTTS_NSH_CMD
+	bool "NSH 'picotts' command"
+	default y
+	---help---
+		Adds a 'picotts' command to NuttShell for speaking text
+		from the command line.
+
+endif # AUDIOUTILS_PICOTTS

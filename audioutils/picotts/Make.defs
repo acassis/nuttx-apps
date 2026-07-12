@@ -1,0 +1,9 @@
+############################################################################
+# apps/audioutils/picotts/Make.defs
+#
+# SPDX-License-Identifier: Apache-2.0
+############################################################################
+
+ifneq ($(CONFIG_AUDIOUTILS_PICOTTS),)
+CONFIGURED_APPS += audioutils/picotts
+endif

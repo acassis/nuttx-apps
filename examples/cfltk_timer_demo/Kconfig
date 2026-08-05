@@ -1,0 +1,35 @@
+config EXAMPLES_CFLTK_TIMER_DEMO
+	tristate "cFLTK Fl_add_timeout demo"
+	default n
+	depends on GRAPHICS_CFLTK
+	depends on GRAPHICS_CFLTK_BACKEND_NX
+	---help---
+		A window with a counter label that increments every 0.5s via
+		Fl_repeat_timeout() -- exercises the NuttX/Microwindows-mwin
+		backend's fl_backend_wait() actually sleeping a bounded amount
+		(SetTimer()/WM_TIMER against a hidden message-only window,
+		fl_nx_event.c) rather than busy-polling or blocking forever,
+		which no other cfltk_* demo reaches (they're all purely
+		input-driven).
+
+		Prints "tick=N elapsed_ms=T" (T an integer -- NuttX's default
+		printf() has no %f) to the console on every tick, so the real
+		wall-clock delay between ticks can be verified from the boot
+		log alone: T should land close to 500, not near-zero (busy
+		spin) or absent entirely (blocked forever).
+
+if EXAMPLES_CFLTK_TIMER_DEMO
+
+config EXAMPLES_CFLTK_TIMER_DEMO_PROGNAME
+	string "Program name"
+	default "cfltk_timer_demo"
+
+config EXAMPLES_CFLTK_TIMER_DEMO_PRIORITY
+	int "cfltk_timer_demo task priority"
+	default 100
+
+config EXAMPLES_CFLTK_TIMER_DEMO_STACKSIZE
+	int "cfltk_timer_demo stack size"
+	default 32768
+
+endif

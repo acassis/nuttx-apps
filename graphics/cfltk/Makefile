@@ -196,6 +196,7 @@ ifeq ($(CONFIG_GRAPHICS_CFLTK_BACKEND_NX),y)
 CSRCS += cfltk/src/backend/nx/fl_nx_window.c
 CSRCS += cfltk/src/backend/nx/fl_nx_event.c
 CSRCS += cfltk/src/backend/nx/fl_nx_driver.c
+CSRCS += cfltk/src/backend/nx/fl_nx_offscreen.c
 endif
 
 include $(APPDIR)/Application.mk

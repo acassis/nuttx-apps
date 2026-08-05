@@ -1,0 +1,33 @@
+config EXAMPLES_CFLTK_DOUBLE_BUFFER_DEMO
+	tristate "cFLTK double-buffered window demo"
+	default n
+	depends on GRAPHICS_CFLTK
+	depends on GRAPHICS_CFLTK_BACKEND_NX
+	---help---
+		A Fl_Double_Window (rather than cfltk_button_demo's plain
+		Fl_Window) with a button that both increments a counter label
+		and resizes the window on every click -- exercises the
+		NuttX/Microwindows-mwin backend's offscreen-buffered draw/flush
+		path (fl_nx_window.c's resize_offscreen()/BitBlt(), and
+		fl_nx_offscreen.c's Fl_Offscreen create/delete/begin/end/copy),
+		which no other cfltk_* demo reaches.
+
+		Prints "clicks=N size=WxH" to the console on every click, so the
+		click and resize pipeline can be verified from the boot log
+		alone even without a display attached.
+
+if EXAMPLES_CFLTK_DOUBLE_BUFFER_DEMO
+
+config EXAMPLES_CFLTK_DOUBLE_BUFFER_DEMO_PROGNAME
+	string "Program name"
+	default "cfltk_double_buffer_demo"
+
+config EXAMPLES_CFLTK_DOUBLE_BUFFER_DEMO_PRIORITY
+	int "cfltk_double_buffer_demo task priority"
+	default 100
+
+config EXAMPLES_CFLTK_DOUBLE_BUFFER_DEMO_STACKSIZE
+	int "cfltk_double_buffer_demo stack size"
+	default 32768
+
+endif

@@ -1,0 +1,56 @@
+From: ClauCoDillo NuttX port
+Subject: [PATCH] mwin: fix WM_CHAR generation for unmapped keys
+
+MwDeliverKbdEvent() (src/mwin/winevent.c) sets VK_Code to VK_NONAME for
+any MWKEY that doesn't match one of the named special-key cases in its
+switch statement -- which is every ordinary printable character (a-z,
+0-9, punctuation, space), since none of those have their own case.
+
+VK_NONAME is 0xFC, not -1. The code right after the switch treats
+"VK_Code != -1" as "this is a real, known VK code" and sets bit 24 of
+lParam to say so:
+
+    if (VK_Code == -1)
+        VK_Code = keyvalue;
+    else
+        lParam |= (1 << 24);
+
+TranslateMessage() (src/mwin/winuser.c) only turns a WM_KEYDOWN into a
+WM_CHAR when that same bit is clear:
+
+    if (lpMsg->message == WM_KEYDOWN &&
+        (!(lpMsg->lParam & (1<<24)) || bAltStatus)) {
+        PostMessage(lpMsg->hwnd, WM_CHAR, ...);
+    }
+
+So every ordinary character key -- landing in the switch's default
+case, getting VK_NONAME, getting bit 24 set -- never produces a
+WM_CHAR. An application only ever sees WM_KEYDOWN/WM_KEYUP with
+wParam==VK_NONAME for a-z/0-9/space/etc., with no way to recover which
+character was actually typed. Real text entry (an Fl_Input-equivalent,
+a text field, anything that types by character rather than by
+special-function key) cannot work through this API as a result.
+
+Fix: don't assign VK_NONAME in the default case. Leave VK_Code at its
+initial -1, so the "no VK defined" branch handles it correctly and
+WM_CHAR gets generated the same way it already does for X11's other,
+recognized special keys.
+
+Found and verified while porting cFLTK's NuttX/Microwindows-mwin
+backend for the ClauCoDillo browser port: this was the last of three
+compounding bugs (the other two: a NuttX sim event-loop scheduling gap
+that never delivered keyboard events at all for keyboard-only sim
+configs, and a missing SetFocus() call in the cFLTK backend itself)
+blocking keyboard input end-to-end. Confirmed fixed by typing into a
+real cFLTK Fl_Input and seeing the correct characters appear.
+---
+--- a/src/mwin/winevent.c
++++ b/src/mwin/winevent.c
+@@ -451,7 +451,6 @@
+ 	case MWKEY_LAST:
+ #endif
+ 	default:
+-		VK_Code = VK_NONAME;
+ 		break;
+ 	}
+

@@ -22,11 +22,11 @@
 
 include $(APPDIR)/Make.defs
 
-# ClauCoDillo: dlib, lout, and dw-core + dw-widgets (dw's platform-
-# independent pieces -- widget/layout base classes and concrete widget
-# types; neither needs cfltk) so far. Same incremental shape as
-# graphics/cfltk's own first pass. dw-fltk (cfltk-specific platform
-# glue) and src/ come in follow-up commits.
+# ClauCoDillo: dlib, lout, and all of dw (dw-core + dw-widgets +
+# dw-fltk, dw's platform-independent pieces plus its cfltk-specific
+# platform glue) so far. Same incremental shape as graphics/cfltk's
+# own first pass. src/ (the browser itself) comes in follow-up
+# commits.
 
 CLAUCODILLO_DIR_NAME = claucodillo
 
@@ -118,5 +118,13 @@ CSRCS += claucodillo/dw/simpletablecell.c
 CSRCS += claucodillo/dw/table.c
 CSRCS += claucodillo/dw/tablecell.c
 CSRCS += claucodillo/dw/textblock.c
+
+CSRCS += claucodillo/dw/fltkflatview.c
+CSRCS += claucodillo/dw/fltkimgbuf.c
+CSRCS += claucodillo/dw/fltkmisc.c
+CSRCS += claucodillo/dw/fltkplatform.c
+CSRCS += claucodillo/dw/fltkui.c
+CSRCS += claucodillo/dw/fltkviewbase.c
+CSRCS += claucodillo/dw/fltkviewport.c
 
 include $(APPDIR)/Application.mk

@@ -6,19 +6,22 @@
 menuconfig GRAPHICS_CLAUCODILLO
 	bool "ClauCoDillo web browser"
 	default n
+	depends on GRAPHICS_CFLTK
 	---help---
 		Enable ClauCoDillo, a from-scratch C++->C99 port of the Dillo
-		web browser targeting cFLTK for its GUI. This option builds
-		dlib, ClauCoDillo's own small utility library (string buffers,
-		hash tables, lists -- see dlib/dlib.c), the first and most
-		foundational piece of the port. Nothing else (lout's geometry
-		utilities, dw's layout/rendering engine, or the browser itself)
-		is built yet -- see docs/analysis.md in the ClauCoDillo_NuttX
-		project for current status. ClauCoDillo's dpi-plugin subsystem
-		(bookmarks, cookies, HTTPS-via-dpi, FTP, downloads) depends on
-		a fork/exec daemon architecture NuttX's task model doesn't
-		support as-is and is deliberately out of scope until that's
-		redesigned -- this port targets local/file rendering first.
+		web browser targeting cFLTK for its GUI -- cFLTK is a hard
+		dependency (dw-fltk, ClauCoDillo's own platform glue, includes
+		cfltk/*.h directly), not optional. This option builds dlib
+		(its own small utility library), lout (geometry/object-model
+		utilities), and dw (the layout/rendering engine: widget/layout
+		base classes, concrete widget types, and cfltk-specific
+		platform glue) -- not yet the browser itself (src/). See
+		docs/analysis.md in the ClauCoDillo_NuttX project for current
+		status. ClauCoDillo's dpi-plugin subsystem (bookmarks, cookies,
+		HTTPS-via-dpi, FTP, downloads) depends on a fork/exec daemon
+		architecture NuttX's task model doesn't support as-is and is
+		deliberately out of scope until that's redesigned -- this port
+		targets local/file rendering first.
 
 if GRAPHICS_CLAUCODILLO
 

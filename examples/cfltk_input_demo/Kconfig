@@ -1,0 +1,27 @@
+config EXAMPLES_CFLTK_INPUT_DEMO
+	tristate "cFLTK text input demo"
+	default n
+	depends on GRAPHICS_CFLTK
+	depends on GRAPHICS_CFLTK_BACKEND_NX
+	---help---
+		A window with a focused Fl_Input text box, printing its
+		contents to the console on Enter. Exercises the NuttX/
+		Microwindows-mwin backend's keyboard translation
+		(fl_nx_event.c's WM_CHAR/WM_KEYDOWN handling) end to end --
+		matches the project's "text boxes" example.
+
+if EXAMPLES_CFLTK_INPUT_DEMO
+
+config EXAMPLES_CFLTK_INPUT_DEMO_PROGNAME
+	string "Program name"
+	default "cfltk_input_demo"
+
+config EXAMPLES_CFLTK_INPUT_DEMO_PRIORITY
+	int "cfltk_input_demo task priority"
+	default 100
+
+config EXAMPLES_CFLTK_INPUT_DEMO_STACKSIZE
+	int "cfltk_input_demo stack size"
+	default 32768
+
+endif

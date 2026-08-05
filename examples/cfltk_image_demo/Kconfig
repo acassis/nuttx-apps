@@ -1,0 +1,32 @@
+config EXAMPLES_CFLTK_IMAGE_DEMO
+	tristate "cFLTK image drawing demo"
+	default n
+	depends on GRAPHICS_CFLTK
+	depends on GRAPHICS_CFLTK_BACKEND_NX
+	---help---
+		A window showing an Fl_RGB_Image (a generated color gradient), a
+		masked Fl_Pixmap (an XPM diamond with a transparent background),
+		and an Fl_Bitmap (a 1-bit checkerboard) over a solid teal
+		background -- exercises the NuttX/Microwindows-mwin backend's
+		raw image blit/read-back/bitmask-stipple Fl_Graphics_Driver
+		calls (d_draw_image()/d_read_image()/d_draw_bitmask() in
+		fl_nx_driver.c), none of which any other cfltk_* demo reaches.
+		The Fl_Pixmap's transparent pixels showing the teal background
+		through them (rather than solid black/garbage) is the proof
+		d_read_image() actually read real screen pixels back.
+
+if EXAMPLES_CFLTK_IMAGE_DEMO
+
+config EXAMPLES_CFLTK_IMAGE_DEMO_PROGNAME
+	string "Program name"
+	default "cfltk_image_demo"
+
+config EXAMPLES_CFLTK_IMAGE_DEMO_PRIORITY
+	int "cfltk_image_demo task priority"
+	default 100
+
+config EXAMPLES_CFLTK_IMAGE_DEMO_STACKSIZE
+	int "cfltk_image_demo stack size"
+	default 32768
+
+endif

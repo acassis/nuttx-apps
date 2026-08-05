@@ -1,0 +1,25 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+menuconfig GRAPHICS_CLAUCODILLO
+	bool "ClauCoDillo web browser"
+	default n
+	---help---
+		Enable ClauCoDillo, a from-scratch C++->C99 port of the Dillo
+		web browser targeting cFLTK for its GUI. This option builds
+		dlib, ClauCoDillo's own small utility library (string buffers,
+		hash tables, lists -- see dlib/dlib.c), the first and most
+		foundational piece of the port. Nothing else (lout's geometry
+		utilities, dw's layout/rendering engine, or the browser itself)
+		is built yet -- see docs/analysis.md in the ClauCoDillo_NuttX
+		project for current status. ClauCoDillo's dpi-plugin subsystem
+		(bookmarks, cookies, HTTPS-via-dpi, FTP, downloads) depends on
+		a fork/exec daemon architecture NuttX's task model doesn't
+		support as-is and is deliberately out of scope until that's
+		redesigned -- this port targets local/file rendering first.
+
+if GRAPHICS_CLAUCODILLO
+
+endif # GRAPHICS_CLAUCODILLO

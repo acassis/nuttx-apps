@@ -1,0 +1,28 @@
+config EXAMPLES_CFLTK_TEXT_DEMO
+	tristate "cFLTK text rendering demo"
+	default n
+	depends on GRAPHICS_CFLTK
+	depends on GRAPHICS_CFLTK_BACKEND_NX
+	---help---
+		A window containing a labeled Fl_Box, exercising the NuttX/
+		Microwindows-mwin backend's text/font rendering
+		(fl_nx_driver.c's CreateFont/TextOut/GetTextExtentPoint path)
+		end to end -- the "text_demo" example the project's
+		verification approach calls for, isolating text rendering from
+		everything else before it's exercised inside real widgets.
+
+if EXAMPLES_CFLTK_TEXT_DEMO
+
+config EXAMPLES_CFLTK_TEXT_DEMO_PROGNAME
+	string "Program name"
+	default "cfltk_text_demo"
+
+config EXAMPLES_CFLTK_TEXT_DEMO_PRIORITY
+	int "cfltk_text_demo task priority"
+	default 100
+
+config EXAMPLES_CFLTK_TEXT_DEMO_STACKSIZE
+	int "cfltk_text_demo stack size"
+	default 32768
+
+endif

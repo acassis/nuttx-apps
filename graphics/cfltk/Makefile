@@ -188,4 +188,14 @@ CSRCS += cfltk/src/widgets/Fl_Toggle_Button.c
 CSRCS += cfltk/src/widgets/Fl_Window.c
 CSRCS += cfltk/src/widgets/Fl_Wizard.c
 
+# backend (see Kconfig -- exactly one must be selected for anything to
+# link; the core above builds fine with none selected, same milestone
+# shape as graphics/microwindows before examples/microwindows existed)
+
+ifeq ($(CONFIG_GRAPHICS_CFLTK_BACKEND_NX),y)
+CSRCS += cfltk/src/backend/nx/fl_nx_window.c
+CSRCS += cfltk/src/backend/nx/fl_nx_event.c
+CSRCS += cfltk/src/backend/nx/fl_nx_driver.c
+endif
+
 include $(APPDIR)/Application.mk

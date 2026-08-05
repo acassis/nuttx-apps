@@ -12,10 +12,29 @@ menuconfig GRAPHICS_CFLTK
 		option builds cFLTK's platform-independent core only (widgets,
 		valuators, menus, text, drawing, dialogs, and the image codecs
 		enabled below). A windowing backend must be selected
-		separately -- there is no backend for NuttX yet, so anything
-		linking against this core will fail until one exists.
+		separately below.
 
 if GRAPHICS_CFLTK
+
+config GRAPHICS_CFLTK_BACKEND_NX
+	bool "NuttX/Microwindows-mwin backend"
+	default n
+	depends on GRAPHICS_MICROWINDOWS
+	depends on MICROWINDOWS_MWIN
+	---help---
+		Implements cFLTK's platform seam (src/backend/nx/) against
+		Microwindows' mwin layer (Win32-compatible window management:
+		CreateWindowEx/ShowWindow/GetMessage/DispatchMessage), not the
+		raw Microwindows engine and not the Nano-X client/server (Gr*)
+		protocol -- see src/backend/nx/fl_nx_internal.h for why.
+
+		First-milestone scope: window lifecycle (create/show/hide/
+		destroy/reshape/relabel) and solid-color drawing primitives
+		(lines, rects, arcs, polygons, clipping). NOT yet implemented:
+		text/font rendering, images, double buffering, drag-and-drop,
+		Fl_add_fd()/timers, and most keyboard translation -- each is
+		marked at its stub in fl_nx_driver.c/fl_nx_event.c rather than
+		silently producing wrong output.
 
 config GRAPHICS_CFLTK_PNG
 	bool "PNG image support (Fl_PNG_Image)"

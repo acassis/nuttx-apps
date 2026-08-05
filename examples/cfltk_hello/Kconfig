@@ -1,0 +1,27 @@
+config EXAMPLES_CFLTK_HELLO
+	tristate "cFLTK hello window example"
+	default n
+	depends on GRAPHICS_CFLTK
+	depends on GRAPHICS_CFLTK_BACKEND_NX
+	---help---
+		A single blank cFLTK window, shown then closed on WM_CLOSE.
+		The smallest possible exercise of cFLTK's NuttX/Microwindows-mwin
+		backend (graphics/cfltk) -- create, show, run, done. Matches the
+		project's "empty window" milestone: prove the backend end to end
+		before building any real widget content on top of it.
+
+if EXAMPLES_CFLTK_HELLO
+
+config EXAMPLES_CFLTK_HELLO_PROGNAME
+	string "Program name"
+	default "cfltk_hello"
+
+config EXAMPLES_CFLTK_HELLO_PRIORITY
+	int "cfltk_hello task priority"
+	default 100
+
+config EXAMPLES_CFLTK_HELLO_STACKSIZE
+	int "cfltk_hello stack size"
+	default 32768
+
+endif

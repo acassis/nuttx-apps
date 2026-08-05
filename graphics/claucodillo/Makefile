@@ -22,11 +22,9 @@
 
 include $(APPDIR)/Make.defs
 
-# ClauCoDillo: dlib (its own small utility library -- string buffers,
-# hash tables, lists) only, for now. This package just proves dlib
-# builds under the NuttX toolchain, same milestone shape as
-# graphics/cfltk's own first pass (platform-independent core only,
-# no windowing backend yet). lout/dw/src come in follow-up commits.
+# ClauCoDillo: dlib (its own small utility library) and lout (geometry/
+# object-model utilities dw/ builds on) so far. Same incremental shape
+# as graphics/cfltk's own first pass. dw/src come in follow-up commits.
 
 CLAUCODILLO_DIR_NAME = claucodillo
 
@@ -68,5 +66,12 @@ endif
 CFLAGS += -std=c99
 
 CSRCS += claucodillo/dlib/dlib.c
+
+CSRCS += claucodillo/lout/container.c
+CSRCS += claucodillo/lout/identity.c
+CSRCS += claucodillo/lout/misc.c
+CSRCS += claucodillo/lout/object.c
+CSRCS += claucodillo/lout/signal.c
+CSRCS += claucodillo/lout/unicode.c
 
 include $(APPDIR)/Application.mk

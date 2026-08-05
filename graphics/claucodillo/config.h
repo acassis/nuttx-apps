@@ -23,4 +23,16 @@
 /* dlib/d_size.h: NuttX's libc provides a real C99 <stdint.h>. */
 #define HAVE_STDINT_H 1
 
+/* lout/object.c's pointer_hashValue(): autotools sets this via
+ * AC_CHECK_SIZEOF([void *]). Only the sim (x86_64 host) target exists
+ * so far -- revisit this value before building for a 32-bit NuttX
+ * target. */
+#define SIZEOF_VOID_P 8
+
+/* lout/misc.c's PRGNAME: normally auto-defined by autoconf/automake
+ * from configure.ac's AC_INIT([dillo], [3.3.0-rc1]) -- kept in sync
+ * with that line by hand here since this port doesn't run autotools. */
+#define PACKAGE "dillo"
+#define VERSION "3.3.0-rc1"
+
 #endif /* APPS_GRAPHICS_CLAUCODILLO_CONFIG_H */

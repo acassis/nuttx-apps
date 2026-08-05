@@ -28,13 +28,13 @@ config GRAPHICS_CFLTK_BACKEND_NX
 		raw Microwindows engine and not the Nano-X client/server (Gr*)
 		protocol -- see src/backend/nx/fl_nx_internal.h for why.
 
-		First-milestone scope: window lifecycle (create/show/hide/
-		destroy/reshape/relabel) and solid-color drawing primitives
-		(lines, rects, arcs, polygons, clipping). NOT yet implemented:
-		text/font rendering, images, double buffering, drag-and-drop,
-		Fl_add_fd()/timers, and most keyboard translation -- each is
-		marked at its stub in fl_nx_driver.c/fl_nx_event.c rather than
-		silently producing wrong output.
+		Window lifecycle, solid-color/line/rect/arc/polygon drawing,
+		clipping, text/font rendering, keyboard and mouse input,
+		offscreen surfaces/double buffering, raw image blit/read-back/
+		bitmask stipple, Fl_add_fd()/timers, and drag-and-drop are all
+		implemented -- see docs/analysis.md in the ClauCoDillo_NuttX
+		project for verification status of each. Not yet implemented:
+		resize hints and real screen DPI (fl_nx_window.c stubs).
 
 config GRAPHICS_CFLTK_PNG
 	bool "PNG image support (Fl_PNG_Image)"

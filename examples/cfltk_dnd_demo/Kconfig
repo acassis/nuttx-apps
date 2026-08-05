@@ -1,0 +1,40 @@
+config EXAMPLES_CFLTK_DND_DEMO
+	tristate "cFLTK drag-and-drop demo"
+	default n
+	depends on GRAPHICS_CFLTK
+	depends on GRAPHICS_CFLTK_BACKEND_NX
+	---help---
+		A "Drag me" box and an empty Fl_Input side by side -- pressing
+		on the box starts an intra-application drag (Fl_dnd()) carrying
+		fixed text, dropped wherever the mouse is released. Exercises
+		the NuttX/Microwindows-mwin backend's fl_backend_dnd_start()
+		(fl_nx_dnd.c): SetCapture()-based mouse tracking,
+		WindowFromPoint()-based hit testing, and the FL_DND_ENTER/
+		FL_DND_DRAG/FL_DND_RELEASE dispatch feeding the drop into the
+		Fl_Input via the same Fl_copy()/Fl_paste() path an ordinary
+		clipboard paste uses. No other cfltk_* demo reaches any of
+		this.
+
+		Unlike the X11 backend's real cross-process Xdnd, this is
+		necessarily intra-application only: mwin owns the whole screen
+		as a single process, so there is no other application on this
+		platform to drop onto or accept a drop from.
+
+		Prints "drag started, dropped=N" to the console once the drag
+		gesture completes.
+
+if EXAMPLES_CFLTK_DND_DEMO
+
+config EXAMPLES_CFLTK_DND_DEMO_PROGNAME
+	string "Program name"
+	default "cfltk_dnd_demo"
+
+config EXAMPLES_CFLTK_DND_DEMO_PRIORITY
+	int "cfltk_dnd_demo task priority"
+	default 100
+
+config EXAMPLES_CFLTK_DND_DEMO_STACKSIZE
+	int "cfltk_dnd_demo stack size"
+	default 32768
+
+endif

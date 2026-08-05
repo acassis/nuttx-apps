@@ -1,0 +1,36 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+menuconfig GRAPHICS_CFLTK
+	bool "cFLTK GUI toolkit"
+	default n
+	---help---
+		Enable cFLTK, a from-scratch C99 reimplementation of the FLTK
+		1.3 GUI toolkit and the GUI layer used by ClauCoDillo. This
+		option builds cFLTK's platform-independent core only (widgets,
+		valuators, menus, text, drawing, dialogs, and the image codecs
+		enabled below). A windowing backend must be selected
+		separately -- there is no backend for NuttX yet, so anything
+		linking against this core will fail until one exists.
+
+if GRAPHICS_CFLTK
+
+config GRAPHICS_CFLTK_PNG
+	bool "PNG image support (Fl_PNG_Image)"
+	default n
+	---help---
+		Requires a libpng providing <png.h> and a linkable libpng
+		available to the NuttX toolchain. There is currently no
+		NuttX apps package providing this, so enabling it requires
+		supplying libpng yourself.
+
+config GRAPHICS_CFLTK_JPEG
+	bool "JPEG image support (Fl_JPEG_Image)"
+	default n
+	depends on LIBJPEG
+	---help---
+		Requires apps/graphics/libjpeg.
+
+endif # GRAPHICS_CFLTK

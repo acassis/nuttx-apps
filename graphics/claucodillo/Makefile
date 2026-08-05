@@ -22,11 +22,11 @@
 
 include $(APPDIR)/Make.defs
 
-# ClauCoDillo: dlib, lout, and dw's platform-independent core
-# (dw-core -- widget/layout base classes, no cfltk dependency) so far.
-# Same incremental shape as graphics/cfltk's own first pass. dw-fltk
-# (cfltk-specific platform glue), dw-widgets (concrete widget types),
-# and src/ come in follow-up commits.
+# ClauCoDillo: dlib, lout, and dw-core + dw-widgets (dw's platform-
+# independent pieces -- widget/layout base classes and concrete widget
+# types; neither needs cfltk) so far. Same incremental shape as
+# graphics/cfltk's own first pass. dw-fltk (cfltk-specific platform
+# glue) and src/ come in follow-up commits.
 
 CLAUCODILLO_DIR_NAME = claucodillo
 
@@ -67,6 +67,16 @@ endif
 
 CFLAGS += -std=c99
 
+# Normally set by autotools from the configured install prefix
+# (dw/Makefile.am: -DDILLO_LIBDIR='"$(pkglibdir)/"'), used by
+# dw/hyphenator.c to locate hyphenation pattern files at runtime
+# (hyph_<lang>.dic). No NuttX filesystem-layout decision has been made
+# yet for where such runtime assets live (see docs/analysis.md's
+# Linux-assumption audit re: the similar ~/.dillo/TLS-CA-bundle
+# questions) -- this is a placeholder so the source compiles; revisit
+# once hyphenation is actually wired up and tested.
+CFLAGS += -DDILLO_LIBDIR=\"/etc/dillo/\"
+
 CSRCS += claucodillo/dlib/dlib.c
 
 CSRCS += claucodillo/lout/container.c
@@ -88,5 +98,25 @@ CSRCS += claucodillo/dw/types.c
 CSRCS += claucodillo/dw/ui.c
 CSRCS += claucodillo/dw/view.c
 CSRCS += claucodillo/dw/widget.c
+
+CSRCS += claucodillo/dw/alignedtablecell.c
+CSRCS += claucodillo/dw/alignedtextblock.c
+CSRCS += claucodillo/dw/bullet.c
+CSRCS += claucodillo/dw/hyphenator.c
+CSRCS += claucodillo/dw/image.c
+CSRCS += claucodillo/dw/listitem.c
+CSRCS += claucodillo/dw/oofawarewidget.c
+CSRCS += claucodillo/dw/ooffloatsmgr.c
+CSRCS += claucodillo/dw/oofposabslikemgr.c
+CSRCS += claucodillo/dw/oofposabsmgr.c
+CSRCS += claucodillo/dw/oofposfixedmgr.c
+CSRCS += claucodillo/dw/oofpositionedmgr.c
+CSRCS += claucodillo/dw/oofposrelmgr.c
+CSRCS += claucodillo/dw/regardingborder.c
+CSRCS += claucodillo/dw/ruler.c
+CSRCS += claucodillo/dw/simpletablecell.c
+CSRCS += claucodillo/dw/table.c
+CSRCS += claucodillo/dw/tablecell.c
+CSRCS += claucodillo/dw/textblock.c
 
 include $(APPDIR)/Application.mk

@@ -1,0 +1,32 @@
+config EXAMPLES_CFLTK_BUTTON_DEMO
+	tristate "cFLTK button click demo"
+	default n
+	depends on GRAPHICS_CFLTK
+	depends on GRAPHICS_CFLTK_BACKEND_NX
+	---help---
+		A window with a clickable Fl_Button that increments a counter
+		label on each click -- exercises the NuttX/Microwindows-mwin
+		backend's mouse event translation (fl_nx_event.c's WM_LBUTTONDOWN/
+		WM_LBUTTONUP handling) and cfltk's own click-dispatch/redraw path
+		end to end, with real input (not just passive rendering). Matches
+		the project's "button_demo" example.
+
+		Prints "clicks=N" to the console on every click, so the click
+		pipeline can be verified from the boot log alone even without a
+		display attached.
+
+if EXAMPLES_CFLTK_BUTTON_DEMO
+
+config EXAMPLES_CFLTK_BUTTON_DEMO_PROGNAME
+	string "Program name"
+	default "cfltk_button_demo"
+
+config EXAMPLES_CFLTK_BUTTON_DEMO_PRIORITY
+	int "cfltk_button_demo task priority"
+	default 100
+
+config EXAMPLES_CFLTK_BUTTON_DEMO_STACKSIZE
+	int "cfltk_button_demo stack size"
+	default 32768
+
+endif

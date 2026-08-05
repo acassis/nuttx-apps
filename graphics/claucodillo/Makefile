@@ -22,9 +22,11 @@
 
 include $(APPDIR)/Make.defs
 
-# ClauCoDillo: dlib (its own small utility library) and lout (geometry/
-# object-model utilities dw/ builds on) so far. Same incremental shape
-# as graphics/cfltk's own first pass. dw/src come in follow-up commits.
+# ClauCoDillo: dlib, lout, and dw's platform-independent core
+# (dw-core -- widget/layout base classes, no cfltk dependency) so far.
+# Same incremental shape as graphics/cfltk's own first pass. dw-fltk
+# (cfltk-specific platform glue), dw-widgets (concrete widget types),
+# and src/ come in follow-up commits.
 
 CLAUCODILLO_DIR_NAME = claucodillo
 
@@ -73,5 +75,18 @@ CSRCS += claucodillo/lout/misc.c
 CSRCS += claucodillo/lout/object.c
 CSRCS += claucodillo/lout/signal.c
 CSRCS += claucodillo/lout/unicode.c
+
+CSRCS += claucodillo/dw/findtext.c
+CSRCS += claucodillo/dw/imgrenderer.c
+CSRCS += claucodillo/dw/iterator.c
+CSRCS += claucodillo/dw/layout.c
+CSRCS += claucodillo/dw/selection.c
+CSRCS += claucodillo/dw/stackingcontextmgr.c
+CSRCS += claucodillo/dw/style.c
+CSRCS += claucodillo/dw/tools.c
+CSRCS += claucodillo/dw/types.c
+CSRCS += claucodillo/dw/ui.c
+CSRCS += claucodillo/dw/view.c
+CSRCS += claucodillo/dw/widget.c
 
 include $(APPDIR)/Application.mk

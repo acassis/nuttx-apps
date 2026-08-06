@@ -1,0 +1,86 @@
+From: ClauCoDillo NuttX port
+Subject: [PATCH] mwin: bound the *real* MwSelect() mouse/keyboard drain loops
+
+Corrects an incomplete earlier fix (0002-mwin-give-mouse-and-keyboard-
+independent-event-budgets.patch): that patch bounded the mouse/
+keyboard drain loops in the `#else /* MSDOS | _MINIX | NDS | VXWORKS |
+PSP | __MINGW32__ | ALLEGRO | EMSCRIPTEN | AJAGUAR */` MwSelect()
+variant. That variant is *not* the one this build actually compiles --
+`#if UNIX && HAVE_SELECT` is true for this Linux sim build, so an
+earlier, completely different MwSelect() (the real select()-based one)
+is the active definition. 0002's fix was applied to dead code the
+entire time.
+
+The *real* MwSelect() (the `UNIX && HAVE_SELECT` one) had the exact
+same unbounded-loop shape, just never caught in the same pass:
+
+    if (mouse_fd >= 0 && FD_ISSET(mouse_fd, &rfds))
+        while (MwCheckMouseEvent())
+            continue;
+
+No cap at all -- if mouse events keep arriving as fast as each
+MwCheckMouseEvent() call can service them (sustained rapid physical
+mouse movement, or a burst of X11 MotionNotify events), this loop
+never returns. Confirmed as the actual root cause of a real,
+repeatedly-reproduced bug: the whole browser window becomes
+unresponsive (100% CPU, force-close required) during ordinary mouse
+movement. Verified directly: `/proc/<pid>/stat` during a hang showed
+enormous `utime` and ~0 `stime` (a pure userspace compute spin, not
+blocked on I/O), and CPU time climbed steadily rather than settling --
+a genuine infinite loop, not a large-but-finite backlog draining.
+Keyboard servicing sits immediately after this loop in the same
+function and was never reached while it spun, which also explains why
+keyboard input was itself unreliable under similar conditions.
+
+Fix: cap both drain loops at 10 events per MwSelect() call, same
+policy 0002 already established for the (inactive, for this build)
+other MwSelect() variant. Verified with extensive stress-testing
+(dozens of rounds of rapid synthetic mouse movement, far exceeding
+what previously triggered a hang within 3-5 rounds) showing zero
+hangs and CPU settling back to idle between bursts.
+
+--- a/src/mwin/winmain.c
++++ b/src/mwin/winmain.c
+@@ -3,6 +3,7 @@
+  *
+  * Main module of Microwindows
+  */
++#include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+ #include <signal.h>
+@@ -321,15 +322,31 @@
+ 	/* Wait for some input on any of the fds in the set or a timeout*/
+ 	if ((e = select(setsize, &rfds, &wfds, &efds, to)) > 0)
+ 	{
+-		/* service mouse file descriptor*/
++		int mouseevents = 0;
++		int kbdevents = 0;
++
++		/* service mouse file descriptor. Bounded (unlike the original
++		 * unconditional "while (...) continue;"): if events keep
++		 * arriving as fast as they're drained (e.g. sustained rapid
++		 * mouse motion, X11 MotionNotify faster than each
++		 * MwCheckMouseEvent() call can service), this loop never
++		 * returned at all -- a genuine, reproducible 100% CPU hang,
++		 * with keyboard servicing (right below, never reached while
++		 * this spins) starved for as long as it ran. Capped the same
++		 * way the *other* (platform-conditional, not actually
++		 * compiled for this Unix/select() build) MwSelect() already
++		 * caps its own two drain loops -- this one just never got the
++		 * same treatment. */
+ 		if (mouse_fd >= 0 && FD_ISSET(mouse_fd, &rfds))
+ 			while (MwCheckMouseEvent())
+-				continue;
++				if (++mouseevents > 10)
++					break;
+ 
+ 		/* service keyboard file descriptor*/
+ 		if (keyb_fd >= 0 && FD_ISSET(keyb_fd, &rfds))
+ 			while (MwCheckKeyboardEvent())
+-				continue;
++				if (++kbdevents > 10)
++					break;
+ 
+ 		/* If registered descriptor, handle it */
+ 		fd = userregfd_head;

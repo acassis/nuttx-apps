@@ -56,6 +56,8 @@ $(MICROWINDOWS_UNPACKNAME): $(MICROWINDOWS_TARBALL)
 		0001-mwin-fix-WM_CHAR-generation-for-unmapped-keys.patch
 	$(Q) patch -p1 -d $(MICROWINDOWS_UNPACKNAME) < \
 		0002-mwin-give-mouse-and-keyboard-independent-event-budgets.patch
+	$(Q) patch -p1 -d $(MICROWINDOWS_UNPACKNAME) < \
+		0003-mwin-bound-the-real-MwSelect-mouse-keyboard-drain-loops.patch
 	$(Q) touch $(MICROWINDOWS_UNPACKNAME)
 	$(ECHO_END)
 

@@ -201,6 +201,12 @@ CSRCS += claucodillo/src/dpiapi.c
 CSRCS += claucodillo/src/findbar.c
 CSRCS += claucodillo/src/xembed.c
 
+# localfile.c: new file, not part of upstream ClauCoDillo -- an
+# in-process file:// loader replacing the "file" dpi plugin (which
+# needs a dpid daemon this port doesn't implement). See its own
+# top-of-file comment for the full rationale.
+CSRCS += claucodillo/src/localfile.c
+
 # form.c: needs <iconv.h>, built into NuttX's own libc (not a missing
 # external library the way it first looked -- CONFIG_LIBC_LOCALE gates
 # the real implementation; the header/prototypes resolve either way).

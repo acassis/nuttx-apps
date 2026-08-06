@@ -226,4 +226,12 @@ ifneq ($(CONFIG_LIBJPEG),)
 CSRCS += claucodillo/src/jpeg.c
 endif
 
+# png.c: needs <png.h>/<libpng/png.h> (new apps/graphics/libpng
+# package, vendored for this port -- no existing NuttX package
+# provided it; exports its own include path globally via its own
+# Make.defs, same as libjpeg).
+ifneq ($(CONFIG_LIBPNG),)
+CSRCS += claucodillo/src/png.c
+endif
+
 include $(APPDIR)/Application.mk

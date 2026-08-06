@@ -1,0 +1,26 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config LIBPNG
+	bool "libpng"
+	default n
+	depends on LIB_ZLIB
+	---help---
+		Enable libpng, the reference C implementation of the PNG
+		(Portable Network Graphics) image format. Requires zlib
+		(apps/system/zlib), since PNG's compression is DEFLATE-based.
+
+		This package builds the read/decode side only (png.c,
+		pngerror.c, pngget.c, pngmem.c, pngpread.c, pngread.c,
+		pngrio.c, pngrtran.c, pngrutil.c, pngset.c, pngtrans.c) --
+		the write-side files (pngwio.c, pngwrite.c, pngwtran.c,
+		pngwutil.c) are not built, since no current NuttX apps
+		package needs to *encode* PNGs. libpng is provided from
+		https://github.com/pnggroup/libpng
+
+config LIBPNG_VER
+	string "libpng version"
+	default "1.6.58"
+	depends on LIBPNG

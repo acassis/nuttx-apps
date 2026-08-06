@@ -147,11 +147,7 @@ CSRCS += claucodillo/dw/fltkui.c
 CSRCS += claucodillo/dw/fltkviewbase.c
 CSRCS += claucodillo/dw/fltkviewport.c
 
-# src/: the browser itself. Excluded for now (genuinely part of the
-# deferred dpi/networking milestone -- see docs/analysis.md's
-# Linux-assumption audit and its "defer dpi" decision):
-#   dns.c            (real networking, deferred with dpi)
-#   dillo.c          (main(): needs the rest of src/ first)
+# src/: the browser itself.
 # decode.c/version.c/jpeg.c/form.c/png.c/webp.c (zlib/libjpeg/iconv/
 # libpng/libwebp) are NOT excluded -- see below, each right before the
 # CONFIG_* it actually needs.
@@ -240,5 +236,31 @@ endif
 ifneq ($(CONFIG_LIBWEBP),)
 CSRCS += claucodillo/src/webp.c
 endif
+
+# dns.c: real networking (getaddrinfo()-based resolver) -- compiles
+# clean against NuttX's own <netdb.h>/<sys/socket.h> (one
+# -Wimplicit-function-declaration warning for gai_strerror(), which
+# NuttX's netdb.h doesn't declare -- harmless unless something
+# actually calls into this file, which nothing does yet). The *design*
+# question from docs/analysis.md's Linux-assumption audit (dpi's
+# fork/exec daemon-of-daemons process model) is still open and
+# deferred -- compiling this file is not the same as that being
+# solved, same "compile now, defer real wiring" reasoning as
+# cookies.c/actions.c/bookmark.c from the original src/ batch.
+CSRCS += claucodillo/src/dns.c
+
+# dillo.c: main() itself, the whole point of this package. Needed
+# CONFIG_SCHED_WAITPID (see boards/sim/.../claucodillo_build/defconfig
+# -- raw_sigchld2()'s waitpid(..., WNOHANG) needs WNOHANG, which
+# NuttX's <sys/wait.h> only declares under that Kconfig option).
+# Compiles clean; NOT yet a real NuttX application entrypoint --
+# dillo.c's own `main()` collides with the sim architecture's own
+# arch/sim/src/sim/sim_head.c `main()`, so this only stays link-safe
+# because nothing references any symbol in this file, letting the
+# static-archive linker drop dillo.o entirely. Wiring this up for real
+# needs a proper MAINSRC-based NuttX app entry (renamed main, e.g.
+# dillo_main(), registered the way examples/hello registers
+# hello_main() -- not started yet).
+CSRCS += claucodillo/src/dillo.c
 
 include $(APPDIR)/Application.mk

@@ -257,15 +257,20 @@ CSRCS += claucodillo/src/dns.c
 # CONFIG_SCHED_WAITPID (see boards/sim/.../claucodillo_build/defconfig
 # -- raw_sigchld2()'s waitpid(..., WNOHANG) needs WNOHANG, which
 # NuttX's <sys/wait.h> only declares under that Kconfig option).
-# Compiles clean; NOT yet a real NuttX application entrypoint --
-# dillo.c's own `main()` collides with the sim architecture's own
-# arch/sim/src/sim/sim_head.c `main()`, so this only stays link-safe
-# because nothing references any symbol in this file, letting the
-# static-archive linker drop dillo.o entirely. Wiring this up for real
-# needs a proper MAINSRC-based NuttX app entry (renamed main, e.g.
-# dillo_main(), registered the way examples/hello registers
-# hello_main() -- not started yet).
-CSRCS += claucodillo/src/dillo.c
+#
+# Built as MAINSRC, not CSRCS, so it becomes a real registered NuttX
+# application (same shape as examples/hello's own MAINSRC/PROGNAME/
+# PRIORITY/STACKSIZE) instead of an inert unreferenced archive member.
+# Application.mk automatically compiles MAINSRC with
+# `-Dmain=<PROGNAME>_main` (see its `rename "main()" ... to
+# "xxx_main()"` support), so dillo.c's own `int main(...)` becomes
+# `dillo_main` at the object-code level with no source patch needed --
+# it no longer collides with the sim architecture's own
+# arch/sim/src/sim/sim_head.c `main()`.
+MAINSRC = claucodillo/src/dillo.c
+PROGNAME = $(CONFIG_GRAPHICS_CLAUCODILLO_PROGNAME)
+PRIORITY = $(CONFIG_GRAPHICS_CLAUCODILLO_PRIORITY)
+STACKSIZE = $(CONFIG_GRAPHICS_CLAUCODILLO_STACKSIZE)
 
 # src/IO/: network I/O layer dillo.c actually calls into. No TLS
 # backend is built (tls_openssl.c/tls_mbedtls.c) -- ENABLE_TLS is not

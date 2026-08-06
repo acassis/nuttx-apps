@@ -25,4 +25,19 @@ menuconfig GRAPHICS_CLAUCODILLO
 
 if GRAPHICS_CLAUCODILLO
 
+config GRAPHICS_CLAUCODILLO_PROGNAME
+	string "Program name"
+	default "dillo"
+	---help---
+		This is the name of the program that will be used when the NSH ELF
+		program is installed.
+
+config GRAPHICS_CLAUCODILLO_PRIORITY
+	int "ClauCoDillo task priority"
+	default 100
+
+config GRAPHICS_CLAUCODILLO_STACKSIZE
+	int "ClauCoDillo stack size"
+	default DEFAULT_TASK_STACKSIZE
+
 endif # GRAPHICS_CLAUCODILLO

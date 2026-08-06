@@ -1,0 +1,26 @@
+#
+# For a description of the syntax of this configuration file,
+# see the file kconfig-language.txt in the NuttX tools repository.
+#
+
+config LIBWEBP
+	bool "libwebp"
+	default n
+	---help---
+		Enable libwebp, the reference implementation of the WebP image
+		format (https://github.com/webmproject/libwebp).
+
+		Only the decode-only subset is built here (the same file set
+		upstream's own "libwebpdecoder" target uses: src/dec, the
+		non-SIMD portion of src/dsp, and the non-encode portion of
+		src/utils) -- ClauCoDillo only decodes WebP images, it never
+		encodes/muxes/demuxes them, so src/enc and src/mux are not
+		built at all. SIMD-accelerated variants (SSE2/SSE4.1/AVX2/
+		NEON/MSA/MIPS) are also excluded in favor of the portable C
+		fallback paths, matching this port's other vendored libraries
+		(no build-system CPU-feature detection is done here).
+
+config LIBWEBP_VER
+	string "libwebp version"
+	default "1.6.0"
+	depends on LIBWEBP

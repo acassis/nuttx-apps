@@ -1,0 +1,115 @@
+From: ClauCoDillo NuttX port
+Subject: [PATCH] utils/thread_utils: avoid OK enumerator clash with NuttX sys/types.h
+
+WebPWorkerStatus (src/utils/thread_utils.h) declares OK as one of its
+enumerators. NuttX's own <sys/types.h> also declares a file-scope
+`enum { ..., OK = 0 }` (its widely-used OK/ERROR convention), pulled
+in transitively via <assert.h> from every dec/*.c file. Both are
+real, non-macro enumerators at file scope, so this is a genuine
+duplicate-enumerator compile error, not a preprocessor collision --
+renamed the libwebp-internal one to WEBP_WORKER_OK, the only
+identifier this changes since it's purely an internal implementation
+detail (not part of the public webp/decode.h API surface anything
+outside thread_utils.c/frame_dec.c ever references).
+
+--- a/src/utils/thread_utils.h
++++ b/src/utils/thread_utils.h
+@@ -27,7 +27,7 @@
+ // State of the worker thread object
+ typedef enum {
+   NOT_OK = 0,   // object is unusable
+-  OK,           // ready to work
++  WEBP_WORKER_OK, // ready to work
+   WORK          // busy finishing the current task
+ } WebPWorkerStatus;
+ 
+--- a/src/utils/thread_utils.c
++++ b/src/utils/thread_utils.c
+@@ -208,12 +208,12 @@
+   int done = 0;
+   while (!done) {
+     pthread_mutex_lock(&impl->mutex);
+-    while (worker->status == OK) {   // wait in idling mode
++    while (worker->status == WEBP_WORKER_OK) {   // wait in idling mode
+       pthread_cond_wait(&impl->condition, &impl->mutex);
+     }
+     if (worker->status == WORK) {
+       WebPGetWorkerInterface()->Execute(worker);
+-      worker->status = OK;
++      worker->status = WEBP_WORKER_OK;
+     } else if (worker->status == NOT_OK) {   // finish the worker
+       done = 1;
+     }
+@@ -237,13 +237,13 @@
+   if (impl == NULL) return;
+ 
+   pthread_mutex_lock(&impl->mutex);
+-  if (worker->status >= OK) {
++  if (worker->status >= WEBP_WORKER_OK) {
+     // wait for the worker to finish
+-    while (worker->status != OK) {
++    while (worker->status != WEBP_WORKER_OK) {
+       pthread_cond_wait(&impl->condition, &impl->mutex);
+     }
+     // assign new status and release the working thread if needed
+-    if (new_status != OK) {
++    if (new_status != WEBP_WORKER_OK) {
+       worker->status = new_status;
+       // Note the associated mutex does not need to be held when signaling the
+       // condition. Unlocking the mutex first may improve performance in some
+@@ -268,16 +268,16 @@
+ 
+ static int Sync(WebPWorker* const worker) {
+ #ifdef WEBP_USE_THREAD
+-  ChangeState(worker, OK);
++  ChangeState(worker, WEBP_WORKER_OK);
+ #endif
+-  assert(worker->status <= OK);
++  assert(worker->status <= WEBP_WORKER_OK);
+   return !worker->had_error;
+ }
+ 
+ static int Reset(WebPWorker* const worker) {
+   int ok = 1;
+   worker->had_error = 0;
+-  if (worker->status < OK) {
++  if (worker->status < WEBP_WORKER_OK) {
+ #ifdef WEBP_USE_THREAD
+     WebPWorkerImpl* const impl =
+         (WebPWorkerImpl*)WebPSafeCalloc(1, sizeof(WebPWorkerImpl));
+@@ -294,7 +294,7 @@
+     }
+     pthread_mutex_lock(&impl->mutex);
+     ok = !pthread_create(&impl->thread, NULL, ThreadLoop, worker);
+-    if (ok) worker->status = OK;
++    if (ok) worker->status = WEBP_WORKER_OK;
+     pthread_mutex_unlock(&impl->mutex);
+     if (!ok) {
+       pthread_mutex_destroy(&impl->mutex);
+@@ -305,12 +305,12 @@
+       return 0;
+     }
+ #else
+-    worker->status = OK;
++    worker->status = WEBP_WORKER_OK;
+ #endif
+-  } else if (worker->status > OK) {
++  } else if (worker->status > WEBP_WORKER_OK) {
+     ok = Sync(worker);
+   }
+-  assert(!ok || (worker->status == OK));
++  assert(!ok || (worker->status == WEBP_WORKER_OK));
+   return ok;
+ }
+ 
+--- a/src/dec/frame_dec.c
++++ b/src/dec/frame_dec.c
+@@ -525,7 +525,7 @@
+     WebPWorker* const worker = &dec->worker;
+     // Finish previous job *before* updating context
+     ok &= WebPGetWorkerInterface()->Sync(worker);
+-    assert(worker->status == OK);
++    assert(worker->status == WEBP_WORKER_OK);
+     if (ok) {   // spawn a new deblocking/output job
+       ctx->io = *io;
+       ctx->id = dec->cache_id;

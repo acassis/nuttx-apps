@@ -147,16 +147,14 @@ CSRCS += claucodillo/dw/fltkui.c
 CSRCS += claucodillo/dw/fltkviewbase.c
 CSRCS += claucodillo/dw/fltkviewport.c
 
-# src/: the browser itself. Excluded for now (image/compression
-# external libs not yet available on NuttX, or genuinely part of the
+# src/: the browser itself. Excluded for now (genuinely part of the
 # deferred dpi/networking milestone -- see docs/analysis.md's
 # Linux-assumption audit and its "defer dpi" decision):
-#   webp.c, png.c    (need libwebp/libpng -- no NuttX package yet)
 #   dns.c            (real networking, deferred with dpi)
 #   dillo.c          (main(): needs the rest of src/ first)
-# decode.c/version.c (zlib, now apps/system/zlib) and jpeg.c/form.c
-# (libjpeg/iconv, both already available) are NOT excluded -- see
-# below, each right before the CONFIG_* it actually needs.
+# decode.c/version.c/jpeg.c/form.c/png.c/webp.c (zlib/libjpeg/iconv/
+# libpng/libwebp) are NOT excluded -- see below, each right before the
+# CONFIG_* it actually needs.
 CSRCS += claucodillo/src/paths.c
 CSRCS += claucodillo/src/tipwin.c
 CSRCS += claucodillo/src/ui.c
@@ -232,6 +230,15 @@ endif
 # Make.defs, same as libjpeg).
 ifneq ($(CONFIG_LIBPNG),)
 CSRCS += claucodillo/src/png.c
+endif
+
+# webp.c: needs <webp/decode.h> (new apps/graphics/libwebp package,
+# vendored for this port -- no existing NuttX package provided it;
+# exports its own include path globally via its own Make.defs, same
+# as libjpeg/libpng). Only the decode-only file set is built, since
+# that's all webp.c's own #includes ever need.
+ifneq ($(CONFIG_LIBWEBP),)
+CSRCS += claucodillo/src/webp.c
 endif
 
 include $(APPDIR)/Application.mk

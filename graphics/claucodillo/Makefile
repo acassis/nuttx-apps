@@ -89,6 +89,10 @@ CFLAGS += -DDILLO_SYSCONF=\"/etc/dillo/\"
 # (src/Makefile.am: -DDILLO_DOCDIR='"$(docdir)/"').
 CFLAGS += -DDILLO_DOCDIR=\"/etc/dillo/doc/\"
 
+# Same story again, for src/IO/dpi.c's dpi-plugin-executable search
+# path (src/IO/Makefile.am: -DDILLO_BINDIR='"$(bindir)/"').
+CFLAGS += -DDILLO_BINDIR=\"/etc/dillo/bin/\"
+
 # apps/system/zlib provides <zlib.h>, but (unlike apps/graphics/libjpeg)
 # doesn't export its include path globally via its own Make.defs -- add
 # it here instead, conditionally, matching what CONFIG_LIB_ZLIB actually
@@ -262,5 +266,30 @@ CSRCS += claucodillo/src/dns.c
 # dillo_main(), registered the way examples/hello registers
 # hello_main() -- not started yet).
 CSRCS += claucodillo/src/dillo.c
+
+# src/IO/: network I/O layer dillo.c actually calls into. No TLS
+# backend is built (tls_openssl.c/tls_mbedtls.c) -- ENABLE_TLS is not
+# defined anywhere in config.h, which matches upstream's own supported
+# configuration when neither USE_OPENSSL nor USE_MBEDTLS is set
+# (src/IO/Makefile.am's own TLS_OPENSSL/TLS_MBEDTLS variables go empty
+# in that case too). tls.c itself still compiles -- its own functions
+# already have a `#if !defined(ENABLE_TLS) return NULL;` fallback path
+# built in upstream for exactly this case.
+CSRCS += claucodillo/src/IO/about.c
+CSRCS += claucodillo/src/IO/mime.c
+CSRCS += claucodillo/src/IO/proto.c
+CSRCS += claucodillo/src/IO/tls.c
+CSRCS += claucodillo/src/IO/IO.c
+CSRCS += claucodillo/src/IO/iowatch.c
+CSRCS += claucodillo/src/IO/control.c
+CSRCS += claucodillo/src/IO/http.c
+CSRCS += claucodillo/src/IO/dpi.c
+
+# dpip/: the wire protocol dpi.c speaks to dpi plugins over (currently
+# unused at runtime -- no dpi plugin daemon exists in this port yet,
+# see docs/analysis.md's Linux-assumption audit -- but dpi.c calls
+# into these functions directly, so they need to actually be linkable,
+# not just declared).
+CSRCS += claucodillo/dpip/dpip.c
 
 include $(APPDIR)/Application.mk

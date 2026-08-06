@@ -89,6 +89,14 @@ CFLAGS += -DDILLO_SYSCONF=\"/etc/dillo/\"
 # (src/Makefile.am: -DDILLO_DOCDIR='"$(docdir)/"').
 CFLAGS += -DDILLO_DOCDIR=\"/etc/dillo/doc/\"
 
+# apps/system/zlib provides <zlib.h>, but (unlike apps/graphics/libjpeg)
+# doesn't export its include path globally via its own Make.defs -- add
+# it here instead, conditionally, matching what CONFIG_LIB_ZLIB actually
+# enables.
+ifneq ($(CONFIG_LIB_ZLIB),)
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/system/zlib/zlib
+endif
+
 CSRCS += claucodillo/dlib/dlib.c
 
 CSRCS += claucodillo/lout/container.c
@@ -143,11 +151,12 @@ CSRCS += claucodillo/dw/fltkviewport.c
 # external libs not yet available on NuttX, or genuinely part of the
 # deferred dpi/networking milestone -- see docs/analysis.md's
 # Linux-assumption audit and its "defer dpi" decision):
-#   decode.c, webp.c, jpeg.c, png.c  (zlib/webp/jpeglib/png external libs)
-#   form.c                          (iconv.h)
-#   version.c                       (zlib+brotli+all image-codec headers)
-#   dns.c                           (real networking, deferred with dpi)
-#   dillo.c                         (main(): needs the rest of src/ first)
+#   webp.c, png.c    (need libwebp/libpng -- no NuttX package yet)
+#   dns.c            (real networking, deferred with dpi)
+#   dillo.c          (main(): needs the rest of src/ first)
+# decode.c/version.c (zlib, now apps/system/zlib) and jpeg.c/form.c
+# (libjpeg/iconv, both already available) are NOT excluded -- see
+# below, each right before the CONFIG_* it actually needs.
 CSRCS += claucodillo/src/paths.c
 CSRCS += claucodillo/src/tipwin.c
 CSRCS += claucodillo/src/ui.c
@@ -193,5 +202,28 @@ CSRCS += claucodillo/src/menu.c
 CSRCS += claucodillo/src/dpiapi.c
 CSRCS += claucodillo/src/findbar.c
 CSRCS += claucodillo/src/xembed.c
+
+# form.c: needs <iconv.h>, built into NuttX's own libc (not a missing
+# external library the way it first looked -- CONFIG_LIBC_LOCALE gates
+# the real implementation; the header/prototypes resolve either way).
+CSRCS += claucodillo/src/form.c
+
+# decode.c/version.c: need <zlib.h> (apps/system/zlib, see CFLAGS
+# above). version.c also references a_Jpeg_version()/a_Png_version()/
+# a_Webp_version() via djpeg.h/dpng.h/dwebp.h, but those are pure
+# declaration headers (no jpeglib.h/png.h/webp/decode.h pulled in at
+# this level) -- compiles fine even before jpeg.c/png.c/webp.c
+# themselves are all in place, same "compiling only needs headers, not
+# a real link yet" reasoning as the rest of this package so far.
+ifneq ($(CONFIG_LIB_ZLIB),)
+CSRCS += claucodillo/src/decode.c
+CSRCS += claucodillo/src/version.c
+endif
+
+# jpeg.c: needs <jpeglib.h> (apps/graphics/libjpeg, already exports its
+# own include path globally via its own Make.defs).
+ifneq ($(CONFIG_LIBJPEG),)
+CSRCS += claucodillo/src/jpeg.c
+endif
 
 include $(APPDIR)/Application.mk

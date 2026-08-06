@@ -35,4 +35,12 @@
 #define PACKAGE "dillo"
 #define VERSION "3.3.0-rc1"
 
+/* src/decode.c's char-encoding conversion: configure.ac probes
+ * whether the local iconv() takes `const char **` (older libiconv) or
+ * `char **` (newer) for its second argument, via AC_DEFINE([inbuf_t],
+ * ...). NuttX's own <iconv.h> (libs/libc/locale/lib_iconv.c) declares
+ * `size_t iconv(iconv_t, char **in, ...)` -- the newer/plain-char
+ * convention. */
+#define inbuf_t char
+
 #endif /* APPS_GRAPHICS_CLAUCODILLO_CONFIG_H */

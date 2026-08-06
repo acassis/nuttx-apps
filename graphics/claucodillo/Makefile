@@ -77,6 +77,18 @@ CFLAGS += -std=c99
 # once hyphenation is actually wired up and tested.
 CFLAGS += -DDILLO_LIBDIR=\"/etc/dillo/\"
 
+# Same story as DILLO_LIBDIR above, for src/paths.c's system-wide
+# config-file search path (src/Makefile.am:
+# -DDILLO_SYSCONF='"$(sysconfdir)/"', where configure.ac sets
+# sysconfdir=${sysconfdir}/${PACKAGE} -- i.e. normally .../etc/dillo/
+# under whatever prefix was configured). Same placeholder, same "no
+# NuttX filesystem-layout decision made yet" caveat.
+CFLAGS += -DDILLO_SYSCONF=\"/etc/dillo/\"
+
+# Same story again, for src/ui.c's "user_help.html" doc path
+# (src/Makefile.am: -DDILLO_DOCDIR='"$(docdir)/"').
+CFLAGS += -DDILLO_DOCDIR=\"/etc/dillo/doc/\"
+
 CSRCS += claucodillo/dlib/dlib.c
 
 CSRCS += claucodillo/lout/container.c
@@ -126,5 +138,60 @@ CSRCS += claucodillo/dw/fltkplatform.c
 CSRCS += claucodillo/dw/fltkui.c
 CSRCS += claucodillo/dw/fltkviewbase.c
 CSRCS += claucodillo/dw/fltkviewport.c
+
+# src/: the browser itself. Excluded for now (image/compression
+# external libs not yet available on NuttX, or genuinely part of the
+# deferred dpi/networking milestone -- see docs/analysis.md's
+# Linux-assumption audit and its "defer dpi" decision):
+#   decode.c, webp.c, jpeg.c, png.c  (zlib/webp/jpeglib/png external libs)
+#   form.c                          (iconv.h)
+#   version.c                       (zlib+brotli+all image-codec headers)
+#   dns.c                           (real networking, deferred with dpi)
+#   dillo.c                         (main(): needs the rest of src/ first)
+CSRCS += claucodillo/src/paths.c
+CSRCS += claucodillo/src/tipwin.c
+CSRCS += claucodillo/src/ui.c
+CSRCS += claucodillo/src/uicmd.c
+CSRCS += claucodillo/src/bw.c
+CSRCS += claucodillo/src/cookies.c
+CSRCS += claucodillo/src/actions.c
+CSRCS += claucodillo/src/hsts.c
+CSRCS += claucodillo/src/auth.c
+CSRCS += claucodillo/src/md5.c
+CSRCS += claucodillo/src/digest.c
+CSRCS += claucodillo/src/colors.c
+CSRCS += claucodillo/src/misc.c
+CSRCS += claucodillo/src/history.c
+CSRCS += claucodillo/src/prefs.c
+CSRCS += claucodillo/src/prefsparser.c
+CSRCS += claucodillo/src/keys.c
+CSRCS += claucodillo/src/url.c
+CSRCS += claucodillo/src/bitvec.c
+CSRCS += claucodillo/src/klist.c
+CSRCS += claucodillo/src/chain.c
+CSRCS += claucodillo/src/utf8.c
+CSRCS += claucodillo/src/timeout.c
+CSRCS += claucodillo/src/dialog.c
+CSRCS += claucodillo/src/web.c
+CSRCS += claucodillo/src/nav.c
+CSRCS += claucodillo/src/cache.c
+CSRCS += claucodillo/src/dicache.c
+CSRCS += claucodillo/src/capi.c
+CSRCS += claucodillo/src/domain.c
+CSRCS += claucodillo/src/css.c
+CSRCS += claucodillo/src/cssparser.c
+CSRCS += claucodillo/src/styleengine.c
+CSRCS += claucodillo/src/plain.c
+CSRCS += claucodillo/src/html.c
+CSRCS += claucodillo/src/table.c
+CSRCS += claucodillo/src/bookmark.c
+CSRCS += claucodillo/src/gif.c
+CSRCS += claucodillo/src/svg.c
+CSRCS += claucodillo/src/imgbuf.c
+CSRCS += claucodillo/src/image.c
+CSRCS += claucodillo/src/menu.c
+CSRCS += claucodillo/src/dpiapi.c
+CSRCS += claucodillo/src/findbar.c
+CSRCS += claucodillo/src/xembed.c
 
 include $(APPDIR)/Application.mk

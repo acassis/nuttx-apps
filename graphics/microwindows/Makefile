@@ -54,6 +54,8 @@ $(MICROWINDOWS_UNPACKNAME): $(MICROWINDOWS_TARBALL)
 	$(Q) mv	microwindows-$(MICROWINDOWS_COMMIT_HASH) $(MICROWINDOWS_UNPACKNAME)
 	$(Q) patch -p1 -d $(MICROWINDOWS_UNPACKNAME) < \
 		0001-mwin-fix-WM_CHAR-generation-for-unmapped-keys.patch
+	$(Q) patch -p1 -d $(MICROWINDOWS_UNPACKNAME) < \
+		0002-mwin-give-mouse-and-keyboard-independent-event-budgets.patch
 	$(Q) touch $(MICROWINDOWS_UNPACKNAME)
 	$(ECHO_END)
 

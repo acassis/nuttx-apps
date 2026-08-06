@@ -1,0 +1,82 @@
+From: ClauCoDillo NuttX port
+Subject: [PATCH] mwin: give mouse and keyboard independent per-cycle event budgets
+
+MwSelect()'s polling-platform implementation (src/mwin/winmain.c)
+drained mouse and keyboard input through two separate `while` loops,
+but both shared a single `numevents` counter capped at 10. A burst of
+mouse activity (rapid physical mouse movement, or a flood of X11
+MotionNotify events) filling that shared counter left little or no
+budget for the keyboard loop that runs immediately after it in the
+same MwSelect() call, and vice versa: a held key's X11 auto-repeat
+burst could starve mouse servicing.
+
+Found investigating a real, live-reproduced bug: Backspace, which
+users naturally hold down to delete several characters (generating a
+fast X11 auto-repeat press stream), would reliably lose its key-down
+events whenever mouse activity was also queued in the same cycle,
+leaving only the trailing key-up once the backlog was finally
+serviced. cfltk's Fl_Input widget only acts on key-down for
+Backspace, so this presented as "Backspace silently does nothing."
+
+Fix: give mouse and keyboard their own independent counters
+(mouseevents, kbdevents), each still capped at 10 per MwSelect() call
+as before, so neither can starve the other. `numevents` (used only to
+decide whether to sleep afterward) is reconstructed as their sum,
+preserving the original behavior for callers.
+
+Note: this is a real, independently-justified fix, but it did not by
+itself resolve a separate, more severe bug also found in the same
+investigation -- an intermittent, genuine infinite-loop 100% CPU hang
+triggered by rapid mouse movement in the full ClauCoDillo browser.
+That hang is still unresolved; see docs/analysis.md and this
+project's memory notes for what's been ruled out so far.
+
+--- a/src/mwin/winmain.c
++++ b/src/mwin/winmain.c
+@@ -418,25 +418,40 @@
+ /* this MwSelect() is used for all polling-based platforms not specially handled above*/
+ #define WAITTIME	50		/* blocking sleep interval in msecs unless polling*/
+ 
+-void 
++void
+ MwSelect(BOOL canBlock)
+ {
+ 	int numevents = 0;
++	int mouseevents = 0;
++	int kbdevents = 0;
+ 
+ 	/* perform single update of aggregate screen update region*/
+ 	if (scrdev.PreSelect)
+ 		scrdev.PreSelect(&scrdev);
+ 
+-	/* poll for mouse data and service if found*/
++	/* poll for mouse data and service if found. Mouse and keyboard each
++	 * get their own independent budget (not a single shared "numevents"
++	 * counter) -- a burst of mouse motion (rapid physical movement, or
++	 * X11 MotionNotify flooding) filling a shared counter would starve
++	 * keyboard servicing for the rest of this call, and vice versa for
++	 * a held key's X11 auto-repeat burst. Confirmed as a real bug this
++	 * way: Backspace (routinely held to delete several characters,
++	 * generating a fast X11 auto-repeat press burst) would reliably
++	 * lose its key-down events while mouse activity was also queued,
++	 * leaving only the trailing key-up once the backlog was finally
++	 * serviced -- Fl_Input's own handle_key() only acts on key-down,
++	 * so held Backspace silently did nothing. */
+ 	while (MwCheckMouseEvent())
+-		if (++numevents > 10)
++		if (++mouseevents > 10)
+ 			break;				/* don't handle too many events at one shot*/
+-	
++
+ 	/* poll for keyboard data and service if found*/
+ 	while (MwCheckKeyboardEvent())
+-		if (++numevents > 10)
++		if (++kbdevents > 10)
+ 			break;				/* don't handle too many events at one shot*/
+-	
++
++	numevents = mouseevents + kbdevents;
++
+ #if MW_FEATURE_TIMERS
+ 	/* check for timer timeouts and service if found*/
+ 	if (GdTimeout())

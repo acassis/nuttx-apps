@@ -43,4 +43,26 @@
  * convention. */
 #define inbuf_t char
 
+/* src/IO/mime.c's a_Mime_init() only registers a MIME-type-to-viewer
+ * mapping for an image format if its own ENABLE_* macro is defined --
+ * configure.ac sets these based on which decode libraries ./configure
+ * actually found (see AC_DEFINE([ENABLE_PNG], ...) etc there). This
+ * NuttX port never ran configure, so none of these were ever defined,
+ * even though the decode libraries themselves (libpng/libjpeg/libwebp,
+ * see this workspace's apps/graphics/{libpng,libjpeg,libwebp}) are
+ * fully compiled and linked in. The decode *code* being present was
+ * never the gap -- confirmed live via a full instrumented trace from
+ * HTTP response down to a_Mime_get_viewer("image/png") returning NULL
+ * (the *only* place this silently fails: no error, no crash, the
+ * image's already-fully-downloaded data just gets handed to
+ * Cache_null_client and discarded). GIF (src/gif.c) and SVG
+ * (src/svg.c, via the bundled nanosvg.h/nanosvgrast.h header-only
+ * library) need no external library at all, so are safe to enable
+ * unconditionally alongside the three that do. */
+#define ENABLE_PNG 1
+#define ENABLE_JPEG 1
+#define ENABLE_WEBP 1
+#define ENABLE_GIF 1
+#define ENABLE_SVG 1
+
 #endif /* APPS_GRAPHICS_CLAUCODILLO_CONFIG_H */

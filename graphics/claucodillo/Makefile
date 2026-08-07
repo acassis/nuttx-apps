@@ -278,18 +278,19 @@ PROGNAME = $(CONFIG_GRAPHICS_CLAUCODILLO_PROGNAME)
 PRIORITY = $(CONFIG_GRAPHICS_CLAUCODILLO_PRIORITY)
 STACKSIZE = $(CONFIG_GRAPHICS_CLAUCODILLO_STACKSIZE)
 
-# src/IO/: network I/O layer dillo.c actually calls into. No TLS
-# backend is built (tls_openssl.c/tls_mbedtls.c) -- ENABLE_TLS is not
-# defined anywhere in config.h, which matches upstream's own supported
-# configuration when neither USE_OPENSSL nor USE_MBEDTLS is set
-# (src/IO/Makefile.am's own TLS_OPENSSL/TLS_MBEDTLS variables go empty
-# in that case too). tls.c itself still compiles -- its own functions
-# already have a `#if !defined(ENABLE_TLS) return NULL;` fallback path
-# built in upstream for exactly this case.
+# src/IO/: network I/O layer dillo.c actually calls into. TLS backend
+# is tls_mbedtls.c (matches upstream's USE_MBEDTLS configuration --
+# src/IO/Makefile.am's TLS_MBEDTLS variable) using apps/crypto/mbedtls,
+# which brings its own include path onto CFLAGS globally via its own
+# Make.defs whenever CONFIG_CRYPTO_MBEDTLS=y (board defconfig), no
+# extra INCDIR needed here. ENABLE_TLS/HAVE_MBEDTLS are defined in
+# config.h. tls_openssl.c is not built -- this port only ever wires up
+# one TLS backend.
 CSRCS += claucodillo/src/IO/about.c
 CSRCS += claucodillo/src/IO/mime.c
 CSRCS += claucodillo/src/IO/proto.c
 CSRCS += claucodillo/src/IO/tls.c
+CSRCS += claucodillo/src/IO/tls_mbedtls.c
 CSRCS += claucodillo/src/IO/IO.c
 CSRCS += claucodillo/src/IO/iowatch.c
 CSRCS += claucodillo/src/IO/control.c

@@ -65,4 +65,25 @@
 #define ENABLE_GIF 1
 #define ENABLE_SVG 1
 
+/* src/IO/tls.c dispatches to tls_mbedtls.c only when both of these are
+ * defined -- upstream's configure.ac sets them via --enable-tls
+ * (default on) plus --enable-mbedtls (default on) when it finds
+ * mbedTLS. This port always builds against apps/crypto/mbedtls (see
+ * CONFIG_CRYPTO_MBEDTLS in the board defconfig), so both are
+ * unconditional here, matching the ENABLE_PNG-etc. pattern above. */
+#define ENABLE_TLS 1
+#define HAVE_MBEDTLS 1
+
+/* tls_mbedtls.c's Tls_load_certificates() uses these directly as
+ * fallback file/path array entries (`-DCA_CERTS_FILE=...` in upstream's
+ * src/IO/Makefile.am, from --with-ca-certs-file/--with-ca-certs-dir --
+ * empty string if unset, which its `if (*ca_files[u])` guard skips).
+ * NuttX has no system-wide CA bundle of its own; the sim's hostfs
+ * mount at /host (see sim_bringup.c) exposes this board's htdocs/
+ * directory, which carries a copy of the host's own
+ * ca-certificates.crt for exactly this purpose. A real (non-sim)
+ * target would need its own bundled/provisioned cert store instead. */
+#define CA_CERTS_FILE "/host/ca-certificates.crt"
+#define CA_CERTS_DIR ""
+
 #endif /* APPS_GRAPHICS_CLAUCODILLO_CONFIG_H */

@@ -77,6 +77,32 @@ CSRCS += libwebp/src/dsp/rescaler.c
 CSRCS += libwebp/src/dsp/upsampling.c
 CSRCS += libwebp/src/dsp/yuv.c
 
+# The "no SIMD" plan above (see this package's Kconfig help text)
+# assumed CPU-feature detection was a build-system choice this port
+# could just opt out of by omission. It isn't, on this target:
+# src/dsp/cpu.h detects SSE2 purely from the compiler's own predefined
+# __SSE2__ macro, which every x86_64 GCC sets unconditionally (SSE2 is
+# baseline for the x86_64 ABI, not an optional extension) -- so every
+# portable dsp/*.c file above unconditionally calls e.g.
+# WebPInitAlphaProcessingSSE2() from its Init() the moment it's built
+# for this sim target, regardless of any CSRCS omission. Undefining
+# __SSE2__ (-mno-sse2) was considered and rejected: it changes the
+# float/double calling convention (x87 instead of SSE registers),
+# risking an ABI mismatch against every other object file in this
+# build, which does use SSE2. Providing the actual SSE2
+# implementations these Init() calls need is the only fix that's both
+# correct and doesn't touch the ABI -- and on this target (unlike a
+# real non-x86 embedded board) they're genuinely free: the same
+# baseline ISA that makes GCC call them is what makes them always
+# compilable and correct here.
+CSRCS += libwebp/src/dsp/alpha_processing_sse2.c
+CSRCS += libwebp/src/dsp/dec_sse2.c
+CSRCS += libwebp/src/dsp/filters_sse2.c
+CSRCS += libwebp/src/dsp/lossless_sse2.c
+CSRCS += libwebp/src/dsp/rescaler_sse2.c
+CSRCS += libwebp/src/dsp/upsampling_sse2.c
+CSRCS += libwebp/src/dsp/yuv_sse2.c
+
 # src/utils: shared helpers the decoder needs (encoder-only helpers
 # like bit_writer_utils.c are not built).
 CSRCS += libwebp/src/utils/bit_reader_utils.c

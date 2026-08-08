@@ -1,0 +1,136 @@
+From: ClauCoDillo NuttX port
+Subject: [PATCH] mwin: nuttxkbd modifier/special keys must not alias ASCII
+
+kbd_codec.h's `enum kbd_keycode_e` numbers its special-key constants
+sequentially from 0, which puts a good chunk of them in the same
+numeric range as printable ASCII: KEYCODE_PAUSE is 32 (' '),
+KEYCODE_F1..F12 are 64..75 ('@' and 'A'..'K'), KEYCODE_LCTRL..RGUI are
+88..95 ('X'..'_'), etc.
+
+src/drivers/kbd_nuttx_event.c's nuttxkbd_Read() called
+translate_keycode() (src/drivers/kbd_nuttx_common.h) on every keyboard
+event's raw `code` unconditionally -- but that table is only valid for
+the KEYBOARD_SPECPRESS/_SPECREL pair (an actual kbd_keycode_e enum
+value, from sim_keyboard.c's is_special dispatch); the ordinary
+KEYBOARD_PRESS/_RELEASE pair carries the literal character code
+straight from X11's XLookupString(), which can be any value in the
+same 0..127 range. So typing an ordinary Space, '@', or any of
+'A'..'K' got run through the special-key table anyway, matched one of
+its cases by numeric coincidence, and turned into a phantom
+Pause/F-key report instead of the actual character -- confirmed live:
+typing a capitalized word or a sentence with a space made input look
+like it silently "stopped working" partway through.
+
+Separately, translate_keycode()'s own table had no cases at all for
+the modifier keys themselves (KEYCODE_LCTRL/RCTRL/LSHIFT/RSHIFT/
+LALT/RALT/LGUI/RGUI) despite update_modifiers() right below it already
+switching on their MWKEY_* equivalents to track shift/ctrl/alt/meta
+state -- so even on the SPEC path, holding either Shift key fell
+through to the same `code < 128` default and produced a literal 'Z'
+(LSHIFT=90=0x5A) or '[' (RSHIFT=91=0x5B) character instead of a
+modifier report.
+
+kbd_nuttx_raw.c's own KBD_PRESS case already keeps ordinary keys off
+translate_keycode() entirely, for exactly this reason -- this patch
+brings kbd_nuttx_event.c (the driver this port's boards actually use,
+CONFIG_MICROWINDOWS_KBD_EVENT) in line with it, and fills in the
+missing modifier-key cases.
+
+Found and verified while testing text entry for the ClauCoDillo
+browser port: Shift+; produced "Z:" instead of ":", right Shift
+produced "[:", and typing anything with a capital A-K or a space
+appeared to do nothing. Confirmed fixed live: normal text, Space,
+'@', capitalized words, and both Shift keys combined with punctuation
+all now produce exactly the typed character.
+---
+--- a/src/drivers/kbd_nuttx_event.c
++++ b/src/drivers/kbd_nuttx_event.c
+@@ -87,20 +87,35 @@
+       return KBD_NODATA;
+     }
+ 
+-  MWKEY key = translate_keycode(event.code);
+-  /* KEYBOARD_PRESS (0) covers ordinary/ASCII keys; special keys
+-   * (Backspace, Enter, Delete, arrows, ...) are reported with
+-   * KEYBOARD_SPECPRESS (2) or KEYBOARD_SPECREL (3) instead -- see
+-   * sim_keyboard.c's own is_special dispatch, which chooses between
+-   * the plain and "SPEC" pairs for exactly this reason.
+-   * Checking only KEYBOARD_PRESS here meant every special-key press
+-   * (event.type == 2) failed this comparison and fell through to the
+-   * release branch below -- so did the matching real release
+-   * (event.type == 3, also != 0) -- meaning *every* special key
+-   * reported "release" for both its actual press and its actual
+-   * release, and "press" never happened at all. Confirmed live: a
+-   * user could not delete text with Backspace or submit a URL with
+-   * Enter -- Fl_Input's own key handling only acts on key-*down*. */
++  /* KEYBOARD_PRESS/_RELEASE (0/1) cover ordinary/ASCII keys, reported
++   * as the literal character code straight from X11's XLookupString()
++   * (see sim_x11eventloop.c); KEYBOARD_SPECPRESS/_SPECREL (2/3) cover
++   * special keys (Backspace, Enter, arrows, Shift/Ctrl/Alt, ...),
++   * reported as a kbd_codec.h `enum kbd_keycode_e` value instead --
++   * see sim_keyboard.c's own is_special dispatch, which chooses
++   * between the plain and "SPEC" pairs for exactly this reason.
++   *
++   * translate_keycode() (kbd_nuttx_common.h) is a table for that
++   * *enum*, valid only for the SPEC pair. Calling it unconditionally
++   * on every event -- as this used to -- fed ordinary character codes
++   * through it too, and the enum's own numbering happens to overlap
++   * printable ASCII: KEYCODE_PAUSE is 32 (' '), KEYCODE_F1..F12 are
++   * 64..75 ('@' and 'A'..'K'), KEYCODE_LSHIFT/RSHIFT are 90/91 ('Z'/
++   * '['), etc. So typing Space, '@', any of 'A'..'K', or holding
++   * either Shift key, silently got hijacked into a phantom
++   * Pause/F-key/modifier report instead of producing (or correctly
++   * suppressing, for Shift itself) a character -- confirmed live: a
++   * capitalized word or a Space mid-sentence made the rest of the
++   * input look like it "stopped working" for that keystroke, and
++   * holding Shift alone inserted a stray 'Z' or '[' before the real,
++   * correctly shift-resolved character. kbd_nuttx_raw.c's own
++   * KBD_PRESS case already keeps ordinary keys on a separate path
++   * from translate_keycode() for exactly this reason -- this brings
++   * kbd_nuttx_event.c in line with it. */
++  int is_special = (event.type == KEYBOARD_SPECPRESS ||
++                     event.type == KEYBOARD_SPECREL);
++  MWKEY key = is_special ? translate_keycode(event.code) :
++              (MWKEY) event.code;
+   int press = (event.type == KEYBOARD_PRESS ||
+                event.type == KEYBOARD_SPECPRESS);
+ 
+
+--- a/src/drivers/kbd_nuttx_common.h
++++ b/src/drivers/kbd_nuttx_common.h
+@@ -69,6 +69,35 @@
+     case KEYCODE_MENU:
+       return MWKEY_MENU;
+ 
++      /* Modifier keys. Their enum values (kbd_codec.h) happen to fall
++       * in the printable-ASCII range (LCTRL=88 'X' ... RGUI=95 '_'),
++       * so without explicit cases here they fell through to the
++       * `code < 128` branch below and got returned as literal ASCII
++       * characters instead of MWKEY modifier codes -- update_modifiers()
++       * already switches on these exact MWKEY_* constants to track
++       * shift/ctrl/alt/meta state, but translate_keycode() never
++       * actually produced them. Confirmed live: holding either Shift
++       * key inserted a spurious 'Z' (LSHIFT=90=0x5A) or '[' (RSHIFT=
++       * 91=0x5B) into the focused text field before the real
++       * (correctly shift-resolved, see sim_x11eventloop.c) character
++       * arrived. */
++    case KEYCODE_LCTRL:
++      return MWKEY_LCTRL;
++    case KEYCODE_RCTRL:
++      return MWKEY_RCTRL;
++    case KEYCODE_LSHIFT:
++      return MWKEY_LSHIFT;
++    case KEYCODE_RSHIFT:
++      return MWKEY_RSHIFT;
++    case KEYCODE_LALT:
++      return MWKEY_LALT;
++    case KEYCODE_RALT:
++      return MWKEY_RALT;
++    case KEYCODE_LGUI:
++      return MWKEY_LMETA;
++    case KEYCODE_RGUI:
++      return MWKEY_RMETA;
++
+     default:
+       if (code < 128)
+         {

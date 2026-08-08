@@ -67,6 +67,17 @@ endif
 
 CFLAGS += -std=c99
 
+# configure.ac's --enable-threaded-dns is on by default
+# (-DD_DNS_THREADED, "advantage of a reentrant resolver library") --
+# without it, src/dns.c's Dns_server_req() calls getaddrinfo()
+# directly and synchronously on the main thread/event loop instead of
+# spawning a real pthread, blocking the whole browser UI for the
+# duration of every DNS lookup. NuttX's netdb resolver is reentrant
+# (same property upstream's flag is named for) and CONFIG_PTHREAD is
+# on by default on this board, so there's no reason to keep the
+# synchronous fallback here.
+CFLAGS += -DD_DNS_THREADED
+
 # Normally set by autotools from the configured install prefix
 # (dw/Makefile.am: -DDILLO_LIBDIR='"$(pkglibdir)/"'), used by
 # dw/hyphenator.c to locate hyphenation pattern files at runtime

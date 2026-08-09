@@ -1,0 +1,94 @@
+From: ClauCoDillo NuttX port
+Subject: [PATCH] mwin: reset stuck Alt status on window refocus
+
+src/mwin/winuser.c's TranslateMessage() tracks whether Alt is
+currently held in a static bAltStatus, updated only when it sees a
+matching WM_KEYDOWN/WM_KEYUP(VK_MENU) pair pass through this
+process's own message queue. When Alt is believed held, an ordinary
+WM_KEYDOWN is translated to WM_SYSCHAR instead of WM_CHAR -- and
+cfltk's WndProc (fl_nx_event.c) only has a case for WM_CHAR, so
+WM_SYSCHAR is silently dropped at DefWindowProc. Net effect when
+bAltStatus gets stuck TRUE: ordinary typing does nothing at all, with
+no error anywhere.
+
+It gets stuck because Alt-Tabbing to a *different* X11 application
+(then back) routinely splits a modifier's press and release across
+two different windows/processes -- X11 delivers each half to
+whichever window has real focus at that instant. If this process
+only ever saw the press half, bAltStatus never gets cleared again.
+
+Confirmed live via a full-pipeline trace (X11 capture -> driver read
+-> mwin window-level focus -> this exact function) showing every
+earlier layer correctly delivering keystrokes to the right window,
+with a lone unpaired Alt-keydown sitting right before typing that
+then went nowhere.
+
+Fix: reset bAltStatus in SetFocus(), unconditionally -- including on
+its "already focused" no-op early-return path. That path matters:
+this process's single top-level window regaining real X11 focus
+(e.g. Alt-Tab back, or clicking a taskbar icon) doesn't necessarily
+change mwin's own internal focuswp at all, since there was never a
+second mwin-internal window competing for it -- a caller
+re-asserting focus on refocus (confirmed via trace: SetFocus() *is*
+called again every time) hits exactly that no-op path. An earlier
+version of this fix only reset bAltStatus after an actual focuswp
+change, which still left the bug reproducible via Alt-Tab-away-and-
+back-then-click-then-type, for exactly this reason.
+
+Found and root-caused while testing the ClauCoDillo browser port:
+user-reported "sometimes the keyboard just stops working after
+switching windows and back," reproduced on demand via Alt-Tab and
+taskbar-icon switching, confirmed fixed via repeated stress-testing
+after the fix (Alt-Tab away/back and taskbar-click cycles no longer
+reproduce it).
+---
+--- a/src/mwin/winuser.c
++++ b/src/mwin/winuser.c
+@@ -242,11 +242,22 @@
+ 	return lpMsg->message != WM_QUIT;
+ }
+
++/* Tracks whether Alt is currently believed held, so TranslateMessage()
++ * below knows whether a WM_KEYDOWN should become a WM_CHAR or a
++ * WM_SYSCHAR (cfltk's WndProc only handles WM_CHAR -- WM_SYSCHAR is
++ * silently dropped, so a wrong TRUE here means typing does nothing
++ * at all). File-scope (not function-local) so SetFocus() can reset it
++ * too -- see that reset site's own comment for the full story: this
++ * variable is only ever updated from a matching VK_MENU press+release
++ * pair passing through this process's own message queue, and
++ * Alt-Tabbing to a *different* X11 application (then back) routinely
++ * delivers only one half of that pair here, leaving it stuck TRUE
++ * forever without a reset hook elsewhere. */
++static BOOL bAltStatus;
++
+ BOOL WINAPI
+ TranslateMessage(CONST MSG *lpMsg)
+ {
+-	static BOOL bAltStatus;	/* store ALT status to send WM_SYSCHAR */
+-
+ 	/* Creat the WM_CHAR on WM_KEYDOWN messages*/
+    	/* if bit 24 in lParam is ON (control key), don't post WM_CHAR */
+ 	if(lpMsg && (lpMsg->message == WM_KEYDOWN || lpMsg->message == WM_KEYUP) &&
+@@ -923,6 +934,23 @@
+ 	if (!IsWindow(hwnd))
+ 		return 0;
+
++	/* Reset TranslateMessage()'s bAltStatus here, unconditionally --
++	 * even on the "already focused" no-op path below. This process's
++	 * single top-level window regaining real X11 focus (e.g. after
++	 * Alt-Tabbing to a *different* X11 application and back) doesn't
++	 * necessarily change mwin's own internal focuswp at all -- there
++	 * was never a second mwin-internal window competing for it -- so
++	 * a caller re-asserting focus here (e.g. on a click) hits the
++	 * hwnd==focuswp branch below and returns early. An earlier version
++	 * of this fix only reset bAltStatus after an actual focuswp
++	 * change, which meant exactly that scenario -- Alt-Tab away and
++	 * back, then click, then type -- still left it stuck: confirmed
++	 * live via a trace showing SetFocus() being called again on every
++	 * refocus, just always landing on this no-op path instead. See
++	 * bAltStatus's own declaration above for why a stuck TRUE here
++	 * silently breaks all typing. */
++	bAltStatus = FALSE;
++
+ 	if(hwnd == focuswp)
+ 		return focuswp;

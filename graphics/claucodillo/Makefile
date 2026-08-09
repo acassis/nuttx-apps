@@ -218,6 +218,12 @@ CSRCS += claucodillo/src/xembed.c
 # top-of-file comment for the full rationale.
 CSRCS += claucodillo/src/localfile.c
 
+# dpiutil.c: escape/unescape helpers shared by the (never-started)
+# dpi daemons. Self-contained (no dpip/socket dependency), so it's
+# reused as-is by src/bookmark.c's in-process bookmarks port instead
+# of duplicating Escape_uri_str()/Escape_html_str()/etc.
+CSRCS += claucodillo/dpi/dpiutil.c
+
 # form.c: needs <iconv.h>, built into NuttX's own libc (not a missing
 # external library the way it first looked -- CONFIG_LIBC_LOCALE gates
 # the real implementation; the header/prototypes resolve either way).

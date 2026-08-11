@@ -224,6 +224,12 @@ CSRCS += claucodillo/src/localfile.c
 # of duplicating Escape_uri_str()/Escape_html_str()/etc.
 CSRCS += claucodillo/dpi/dpiutil.c
 
+# vsource.c: new file, not part of upstream ClauCoDillo -- an
+# in-process "View source" (Ctrl+U) renderer replacing the "vsource"
+# dpi plugin (which needs a dpid daemon this port doesn't implement).
+# See its own top-of-file comment for the full rationale.
+CSRCS += claucodillo/src/vsource.c
+
 # form.c: needs <iconv.h>, built into NuttX's own libc (not a missing
 # external library the way it first looked -- CONFIG_LIBC_LOCALE gates
 # the real implementation; the header/prototypes resolve either way).

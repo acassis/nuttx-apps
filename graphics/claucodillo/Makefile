@@ -81,28 +81,55 @@ CFLAGS += -DD_DNS_THREADED
 # Normally set by autotools from the configured install prefix
 # (dw/Makefile.am: -DDILLO_LIBDIR='"$(pkglibdir)/"'), used by
 # dw/hyphenator.c to locate hyphenation pattern files at runtime
-# (hyph_<lang>.dic). No NuttX filesystem-layout decision has been made
-# yet for where such runtime assets live (see docs/analysis.md's
-# Linux-assumption audit re: the similar ~/.dillo/TLS-CA-bundle
-# questions) -- this is a placeholder so the source compiles; revisit
-# once hyphenation is actually wired up and tested.
-CFLAGS += -DDILLO_LIBDIR=\"/etc/dillo/\"
+# (hyphenation/<lang>.pat, <lang> a bare 2-letter code -- see
+# textblock.c's textblock_hyphenateWord(), which passes just
+# style_attrs.x_lang's first two characters). This board has no real
+# persistent/ROMFS-backed filesystem of its own yet to be the "real"
+# install location a non-sim NuttX target would eventually need -- but
+# it does have the /host hostfs mount already established for the TLS
+# CA bundle and file:// test page (sim_bringup.c), backed by this
+# board's own htdocs/ directory. Reused here the same way: real
+# pattern files now live at htdocs/dillo/hyphenation/{en,de}.pat
+# (copied from claucodillo/test/unit/hyph-{en-us,de}.pat, renamed to
+# the bare 2-letter names the runtime lookup actually uses), so
+# hyphenation on those two languages now genuinely works instead of
+# silently finding nothing at a nonexistent /etc/dillo/. A real
+# (non-sim) target still needs its own decision here -- ROMFS-embedded,
+# most likely -- this only makes the sim board's copy of the gap real.
+CFLAGS += -DDILLO_LIBDIR=\"/host/dillo/\"
 
 # Same story as DILLO_LIBDIR above, for src/paths.c's system-wide
 # config-file search path (src/Makefile.am:
 # -DDILLO_SYSCONF='"$(sysconfdir)/"', where configure.ac sets
 # sysconfdir=${sysconfdir}/${PACKAGE} -- i.e. normally .../etc/dillo/
-# under whatever prefix was configured). Same placeholder, same "no
-# NuttX filesystem-layout decision made yet" caveat.
-CFLAGS += -DDILLO_SYSCONF=\"/etc/dillo/\"
+# under whatever prefix was configured). No system-wide rc files are
+# vendored here (paths.c already falls back to internal defaults
+# gracefully when none are found, and that's still the expected case
+# for this port) -- but the directory now resolves to something real,
+# so dropping a dillorc/keysrc/domainrc into htdocs/dillo/ would
+# actually take effect if that's ever wanted for testing.
+CFLAGS += -DDILLO_SYSCONF=\"/host/dillo/\"
 
 # Same story again, for src/ui.c's "user_help.html" doc path
-# (src/Makefile.am: -DDILLO_DOCDIR='"$(docdir)/"').
-CFLAGS += -DDILLO_DOCDIR=\"/etc/dillo/doc/\"
+# (src/Makefile.am: -DDILLO_DOCDIR='"$(docdir)/"'). Now points at a
+# real, vendored copy of claucodillo/doc/user_help.in.html (no
+# autotools substitution markers in that file, so a plain copy is the
+# built artifact -- see htdocs/dillo/user_help.html), so the in-app
+# Help page now actually renders instead of failing to open.
+CFLAGS += -DDILLO_DOCDIR=\"/host/dillo/\"
 
 # Same story again, for src/IO/dpi.c's dpi-plugin-executable search
-# path (src/IO/Makefile.am: -DDILLO_BINDIR='"$(bindir)/"').
-CFLAGS += -DDILLO_BINDIR=\"/etc/dillo/bin/\"
+# path (src/IO/Makefile.am: -DDILLO_BINDIR='"$(bindir)/"'). Unlike the
+# three above, nothing is vendored here on purpose: this is where
+# dpi.c would look for a "dpid" executable to spawn, and this port
+# doesn't implement dpid at all (every dpi-backed feature that matters
+# -- file/bookmarks/cookies/downloads/vsource -- was ported in-process
+# instead, bypassing this path entirely; only FTP still reaches it, and
+# is deliberately deferred). Still repointed off /etc/dillo/ for
+# consistency/hygiene -- the exact value is otherwise inert, since
+# Dpi_start_dpid()'s "can't start dpid" failure is already a graceful,
+# already-observed no-op regardless of what path it fails to find.
+CFLAGS += -DDILLO_BINDIR=\"/host/dillo/bin/\"
 
 # apps/system/zlib provides <zlib.h>, but (unlike apps/graphics/libjpeg)
 # doesn't export its include path globally via its own Make.defs -- add

@@ -34,7 +34,8 @@ _MAJ         := $(CONFIG_UGLY_VERSION_MAJOR)
 _MIN         := $(CONFIG_UGLY_VERSION_MINOR)
 _PAT         := $(CONFIG_UGLY_VERSION_PATCH)
 UGLY_VERSION := $(_MAJ).$(_MIN).$(_PAT)
-UGLY_TARBALL := test-for-0.1.zip
+UGLY_PACKAGE := test-for-0.1
+UGLY_TARBALL := $(UGLY_PACKAGE).zip
 
 UGLY_UNPACKNAME = uGLy
 UNPACK ?= unzip -o $(if $(V),,-q)
@@ -42,15 +43,21 @@ CURL ?= curl -L -O $(if $(V),,-Ss)
 
 UGLY_UNPACKDIR =  $(WD)/$(UGLY_UNPACKNAME)
 
+# Patches applied on top of the uGLy release, in name order
+
+UGLY_PATCHES := $(sort $(wildcard patches/*.patch))
+
 $(UGLY_TARBALL):
 	$(ECHO_BEGIN)"Downloading: $(UGLY_TARBALL)"
 	$(Q) $(CURL) $(CONFIG_GRAPH_UGLY_URL)/$(UGLY_TARBALL)
 	$(ECHO_END)
 
-$(UGLY_UNPACKNAME): $(UGLY_TARBALL)
+$(UGLY_UNPACKNAME): $(UGLY_TARBALL) $(UGLY_PATCHES)
 	$(ECHO_BEGIN)"Unpacking: $(UGLY_TARBALL) -> $(UGLY_UNPACKNAME)"
 	$(Q) $(UNPACK) $(UGLY_TARBALL)
-	$(Q) mv uGLy-test-alan $(UGLY_UNPACKNAME)
+	$(call DELDIR, $(UGLY_UNPACKNAME))
+	$(Q) mv uGLy-$(UGLY_PACKAGE) $(UGLY_UNPACKNAME)
+	$(Q) $(foreach p,$(UGLY_PATCHES),patch -s -p1 -d $(UGLY_UNPACKNAME) < $(p) &&) true
 	$(Q) touch $(UGLY_UNPACKNAME)
 	$(Q) cp Make_uGLy.defs uGLy/Make.defs
 	$(ECHO_END)
@@ -63,9 +70,10 @@ endif
 # only includes this file next time when it was copied in the above step
 -include uGLy/Make.defs
 
-CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/graphics/uGLy/uGLy/include
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/graphics/uGLy/uGLy/third_party/fpsqrt
 CFLAGS += -DBPP24 -DDISABLE_STENCIL_BUFFER
+CFLAGS += -DXRES_FRAMEBUFFER=$(CONFIG_GRAPHICS_UGLY_XRES)
+CFLAGS += -DYRES_FRAMEBUFFER=$(CONFIG_GRAPHICS_UGLY_YRES)
 
 include $(APPDIR)/Application.mk
 

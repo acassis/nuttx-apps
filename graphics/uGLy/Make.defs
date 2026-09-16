@@ -28,4 +28,9 @@ CONFIGURED_APPS += $(APPDIR)/graphics/uGLy
 CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/graphics/uGLy
 CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)/graphics/uGLy
 
+# Applications get <GLES/gl.h> from uGLy instead of the host's headers
+
+CFLAGS += ${INCDIR_PREFIX}$(APPDIR)/graphics/uGLy/uGLy/include
+CXXFLAGS += ${INCDIR_PREFIX}$(APPDIR)/graphics/uGLy/uGLy/include
+
 endif

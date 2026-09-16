@@ -1,5 +1,5 @@
 ############################################################################
-# apps/graphics/pdcurs34/pdcurses/Make.defs
+# apps/graphics/uGLy/uGLy/Make.defs
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -23,7 +23,7 @@
 DEPPATH += --dep-path uGLy
 VPATH += :uGLy
 
-CSRCS += es10cl.c es11.c matricesFP.c raster.c
+CSRCS += es10cl.c es11.c matricesFP.c raster.c nuttx.c
 CSRCS += fpsqrt.c
 
 DEPPATH += --dep-path uGLy/src

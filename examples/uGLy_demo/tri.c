@@ -14,6 +14,8 @@
  * 5 June 2008
  */
 
+#include <nuttx/config.h>
+
 #include <stdint.h>
 #define USE_FIXED_POINT 1
 
@@ -37,9 +39,14 @@
 #include <stdlib.h>
 #include <GLES/gl.h>  /* use OpenGL ES 1.x */
 
-//#include <internal.h>
-
 #include "tex64x64xRGBA32.h"
+
+/* Provided by the uGLy platform backend (see uGLy/include/internal.h) */
+
+typedef void (*KeyCallback)(int charkey);
+
+void initWindow(KeyCallback callback);
+void swapBuffers(void);
 
 static GLfixed view_rotx = 0, view_roty = 0, view_rotz = 0;
 
@@ -277,7 +284,7 @@ special_key(int special)
 
 void mainLoop(void)
 {
-    reshape(320, 240);
+    reshape(CONFIG_GRAPHICS_UGLY_XRES, CONFIG_GRAPHICS_UGLY_YRES);
     while (1)
     {
         draw();

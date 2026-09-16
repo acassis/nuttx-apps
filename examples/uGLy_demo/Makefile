@@ -22,17 +22,16 @@
 
 include $(APPDIR)/Make.defs
 
-# FB, World! built-in application info
+# uGLy demo built-in application info
 
 PROGNAME = $(CONFIG_EXAMPLES_UGLY_DEMO_PROGNAME)
 PRIORITY = $(CONFIG_EXAMPLES_UGLY_DEMO_PRIORITY)
 STACKSIZE = $(CONFIG_EXAMPLES_UGLY_DEMO_STACKSIZE)
-MODULE = $(CONFIG_EXAMPLES_FB)
+MODULE = $(CONFIG_EXAMPLES_UGLY_DEMO)
 
-# FB, World! Example
+# uGLy demo
+
 CSRCS  += tri.c
 MAINSRC = uGLy_demo.c
-
-CFLAGS += -DBPP24 -DDISABLE_STENCIL_BUFFER
 
 include $(APPDIR)/Application.mk

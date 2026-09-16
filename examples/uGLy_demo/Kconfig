@@ -6,13 +6,13 @@
 config EXAMPLES_UGLY_DEMO
 	tristate "uGLy Graphic Demo"
 	default n
-	select LCD_PACKEDMSFIRST if LCD
-	depends on VIDEO_FB
 	depends on GRAPHICS_UGLY
 	---help---
-		Enable the uGLy demo using video framebuffer /dev/fb0
+		Enable the uGLy demo.  It renders a rotating textured quad to the
+		framebuffer selected by GRAPHICS_UGLY_FBDEV.  Press 'q' or ESC to
+		quit; 'w', 's', 'a', 'd', 'z', 'x' rotate it and '0' resets it.
 
-if EXAMPLES_FB
+if EXAMPLES_UGLY_DEMO
 
 config EXAMPLES_UGLY_DEMO_PROGNAME
 	string "Program name"
@@ -27,6 +27,8 @@ config EXAMPLES_UGLY_DEMO_PRIORITY
 
 config EXAMPLES_UGLY_DEMO_STACKSIZE
 	int "Stack size"
-	default DEFAULT_TASK_STACKSIZE
+	default 8192
+	---help---
+		The uGLy rasterizer needs about 2KB of stack on its own.
 
 endif

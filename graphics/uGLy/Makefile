@@ -34,7 +34,7 @@ _MAJ         := $(CONFIG_UGLY_VERSION_MAJOR)
 _MIN         := $(CONFIG_UGLY_VERSION_MINOR)
 _PAT         := $(CONFIG_UGLY_VERSION_PATCH)
 UGLY_VERSION := $(_MAJ).$(_MIN).$(_PAT)
-UGLY_TARBALL := test-alan.zip
+UGLY_TARBALL := test-for-0.1.zip
 
 UGLY_UNPACKNAME = uGLy
 UNPACK ?= unzip -o $(if $(V),,-q)
